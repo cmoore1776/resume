@@ -52,12 +52,14 @@ Frontend deployment MUST use UID 101 or sed fails with permission denied:
 - `chart/templates/frontend-deployment.yaml:28` - Uses `frontend.podSecurityContext`
 
 ### Audio Format
-OpenAI sends PCM16 (signed 16-bit), frontend converts to Float32:
+**CRITICAL**: We do NOT set the `Format` field in `SessionAudioOutput` (chat.go:86-88). This prevents audio distortion/static issues with GPT Realtime API. OpenAI uses default format when unspecified.
+
 ```typescript
-// chat.go:87 - Backend configures voice
+// chat.go:87 - Backend configures voice ONLY (no format specified)
 Voice: openairt.VoiceCedar
 
 // Chat.tsx - Frontend decodes base64 → PCM16 → Float32
+// OpenAI sends PCM16 24kHz by default
 const view = new DataView(binary.buffer);
 const float32 = new Float32Array(binary.length / 2);
 for (let i = 0; i < float32.length; i++) {
@@ -180,13 +182,14 @@ kubectl get pod -n resume -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.
 
 ## Critical Gotchas
 
-1. **No hot reload in containers** - Must rebuild and redeploy for code changes
-2. **System prompt lives in two places** - values.yaml (k8s) and system_prompt.txt (local dev)
-3. **Frontend needs write access** - UID 101 required for sed in entrypoint
-4. **CORS in two places** - Both main.go and chat.go must match
-5. **ArgoCD auto-sync** - Commits to main branch auto-deploy (prune + self-heal enabled)
-6. **No reconnection logic** - User must refresh if WebSocket drops
-7. **Audio requires interaction** - Browser autoplay policy requires user click first
+1. **DO NOT set audio Format field** - Leave unset in SessionAudioOutput to avoid distortion/static (chat.go:86-88)
+2. **No hot reload in containers** - Must rebuild and redeploy for code changes
+3. **System prompt lives in two places** - values.yaml (k8s) and system_prompt.txt (local dev)
+4. **Frontend needs write access** - UID 101 required for sed in entrypoint
+5. **CORS in two places** - Both main.go and chat.go must match
+6. **ArgoCD auto-sync** - Commits to main branch auto-deploy (prune + self-heal enabled)
+7. **No reconnection logic** - User must refresh if WebSocket drops
+8. **Audio requires interaction** - Browser autoplay policy requires user click first
 
 ## Project Structure
 
