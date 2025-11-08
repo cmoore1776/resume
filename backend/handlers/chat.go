@@ -3,8 +3,10 @@ package handlers
 import (
 	"context"
 	"log"
+	"net"
 	"net/http"
 	"sync"
+	"time"
 
 	openairt "github.com/WqyJh/go-openai-realtime/v2"
 	"github.com/gin-gonic/gin"
@@ -12,6 +14,16 @@ import (
 )
 
 var upgrader = websocket.Upgrader{
+	// Buffer sizes optimized for real-time audio streaming
+	ReadBufferSize:  8192, // 8KB for incoming audio chunks
+	WriteBufferSize: 8192, // 8KB for outgoing audio chunks
+
+	// Disable compression for real-time audio (compression adds latency)
+	EnableCompression: false,
+
+	// Handshake timeout
+	HandshakeTimeout: 10 * time.Second,
+
 	CheckOrigin: func(r *http.Request) bool {
 		// Allow connections from localhost and christianmoore.me
 		origin := r.Header.Get("Origin")
@@ -58,6 +70,18 @@ func (h *ChatHandler) HandleWebSocket(c *gin.Context) {
 		return
 	}
 	defer clientWS.Close()
+
+	// Enable TCP_NODELAY for low-latency real-time audio streaming
+	// Disables Nagle's algorithm to send packets immediately without buffering
+	if conn := clientWS.UnderlyingConn(); conn != nil {
+		if tcpConn, ok := conn.(*net.TCPConn); ok {
+			if err := tcpConn.SetNoDelay(true); err != nil {
+				log.Printf("Warning: Failed to set TCP_NODELAY: %v", err)
+			} else {
+				log.Printf("TCP_NODELAY enabled for real-time audio streaming")
+			}
+		}
+	}
 
 	// Create OpenAI Realtime client
 	client := openairt.NewClient(h.apiKey)
