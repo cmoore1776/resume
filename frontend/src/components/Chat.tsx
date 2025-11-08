@@ -15,7 +15,7 @@ declare global {
     turnstile?: {
       render: (element: string | HTMLElement, options: {
         sitekey: string;
-        callback: (token: string) => void;
+        callback: string | ((token: string) => void);
       }) => void;
     };
   }
@@ -75,7 +75,7 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
       });
   }, []);
 
-  // Turnstile success callback
+  // Turnstile success callback - must be stable reference for window
   const handleTurnstileSuccess = useCallback(async (token: string) => {
     console.log('Turnstile callback triggered with token:', token);
     setIsVerifying(true);
@@ -109,7 +109,17 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
     } finally {
       setIsVerifying(false);
     }
-  }, []);
+  }, [setIsVerifying, setAuthError, setJwtToken, setIsVerified]);
+
+  // Setup global callback for Turnstile
+  useEffect(() => {
+    // Create stable global callback that Turnstile can call by name
+    (window as Window & { onTurnstileCallback?: (token: string) => void }).onTurnstileCallback = handleTurnstileSuccess;
+
+    return () => {
+      delete (window as Window & { onTurnstileCallback?: (token: string) => void }).onTurnstileCallback;
+    };
+  }, [handleTurnstileSuccess]);
 
   // Poll for Turnstile script and render widget
   useEffect(() => {
@@ -124,10 +134,10 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
 
       if (element && window.turnstile) {
         try {
-          console.log('Rendering Turnstile widget with callback:', handleTurnstileSuccess);
+          console.log('Rendering Turnstile widget with callback: onTurnstileCallback');
           window.turnstile.render(element, {
             sitekey: turnstileSiteKey,
-            callback: handleTurnstileSuccess,
+            callback: 'onTurnstileCallback',
           });
           turnstileRendered.current = true;
           console.log('Turnstile widget rendered successfully');
