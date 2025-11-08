@@ -76,4 +76,4 @@ Cloud Infrastructure Architect with 15+ years operating and 10+ years designing 
 
 ## Personal Projects
 **Kubernetes Homelab:** Production‑grade k3s with ArgoCD GitOps, sealed secrets, default‑deny NetworkPolicies, cert‑manager TLS, Longhorn backups, and full Prometheus/Grafana/Loki/Alertmanager observability; automated OS/cluster updates and Helm‑managed apps.  
-**Real-time AI Avatar:**  Golang backend, WebSocket streaming, OpenAI GPT-Realtime voice synthesis, and a React frontend;
+**Real-time AI Avatar:**  Golang backend, WebSocket streaming, OpenAI gpt-realtime-mini voice synthesis, and a React frontend;

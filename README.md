@@ -40,37 +40,37 @@ This application combines a traditional resume display with an AI-powered chat i
 ## Architecture
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│                        Browser (Client)                       │
-│                                                               │
+┌─────────────────────────────────────────────────────────────┐
+│                        Browser (Client)                     │
+│                                                             │
 │  ┌────────────────┐              ┌──────────────────────┐   │
 │  │  Resume.tsx    │              │     Chat.tsx         │   │
 │  │  (Static HTML) │              │  - WebSocket client  │   │
 │  │                │              │  - Audio playback    │   │
 │  └────────────────┘              │  - Text display      │   │
-│                                   └──────────────────────┘   │
-└───────────────────────────┬──────────────────────────────────┘
+│                                  └──────────────────────┘   │
+└───────────────────────────┬─────────────────────────────────┘
                             │ WebSocket
                             │ (text + base64 audio)
-┌───────────────────────────┴──────────────────────────────────┐
-│                      Go Backend (Gin)                         │
-│                                                               │
+┌───────────────────────────┴─────────────────────────────────┐
+│                      Go Backend (Gin)                       │
+│                                                             │
 │  ┌──────────────────────────────────────────────────────┐   │
-│  │              WebSocket Handler                        │   │
+│  │              WebSocket Handler                       │   │
 │  │  - Upgrade HTTP → WebSocket                          │   │
 │  │  - Proxy messages to/from OpenAI                     │   │
 │  │  - Forward text + audio streams                      │   │
 │  └──────────────────────────────────────────────────────┘   │
-└───────────────────────────┬──────────────────────────────────┘
+└───────────────────────────┬─────────────────────────────────┘
                             │ WebSocket
                             │ (OpenAI Realtime Protocol)
 ┌───────────────────────────┴──────────────────────────────────┐
-│                   OpenAI Realtime API                         │
-│                                                               │
+│                   OpenAI Realtime API                        │
+│                                                              │
 │  - GPT-4o Realtime model                                     │
 │  - Text generation + voice synthesis                         │
 │  - Streaming responses (delta events)                        │
-└───────────────────────────────────────────────────────────────┘
+└──────────────────────────────────────────────────────────────┘
 ```
 
 ## Quick Start
@@ -109,7 +109,7 @@ cd backend
 # Create .env file
 cat > .env << EOF
 OPENAI_API_KEY=sk-your-api-key-here
-OPENAI_MODEL=gpt-4o-realtime-preview-2024-12-17
+OPENAI_MODEL=gpt-realtime-mini
 PORT=8080
 EOF
 

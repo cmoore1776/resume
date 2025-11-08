@@ -84,7 +84,7 @@ func (h *ChatHandler) HandleWebSocket(c *gin.Context) {
 				Instructions: h.systemPrompt,
 				Audio: &openairt.RealtimeSessionAudio{
 					Output: &openairt.SessionAudioOutput{
-						Voice: openairt.VoiceEcho, // Masculine voice
+						Voice: openairt.VoiceCedar, // Masculine voice
 					},
 				},
 				OutputModalities: []openairt.Modality{

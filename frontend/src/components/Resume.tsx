@@ -71,7 +71,7 @@ export default function Resume() {
               <strong>HPC & EDA Admin:</strong> Slurm, Synopsys
             </div>
             <div>
-              <strong>Operating Systems:</strong> Linux (RHEL, CentOS, Ubuntu, Amazon Linux), ARM64, macOS, Windows Server
+              <strong>Operating Systems:</strong> Linux (RHEL/Fedora/CentOS, Ubuntu/Debian, Amazon Linux), macOS, Windows Server
             </div>
           </div>
         </section>
@@ -181,8 +181,8 @@ export default function Resume() {
 
           <div className="project">
             <p>
-              <strong>Real-time AI Avatar:</strong> Golang backend, WebSocket streaming, OpenAI GPT-Realtime voice synthesis,
-              and a React frontend. <a href="https://cmoore1776.github.io/resume/" target="_blank" rel="noopener noreferrer">Demo</a> • <a href="https://github.com/cmoore1776/resume" target="_blank" rel="noopener noreferrer">Source</a>
+              <strong>Real-time AI Avatar:</strong> Golang backend, WebSocket streaming, realtime voice synthesis,
+              and a React frontend. <a href="https://resume.k3s.christianmoore.me" target="_blank" rel="noopener noreferrer">Live</a> • <a href="https://github.com/cmoore1776/resume" target="_blank" rel="noopener noreferrer">Source</a>
             </p>
           </div>
         </section>

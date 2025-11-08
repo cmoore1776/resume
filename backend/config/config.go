@@ -22,7 +22,7 @@ func Load() *Config {
 
 	cfg := &Config{
 		OpenAIAPIKey: getEnv("OPENAI_API_KEY", ""),
-		OpenAIModel:  getEnv("OPENAI_MODEL", "gpt-4o-realtime-preview-2024-12-17"),
+		OpenAIModel:  getEnv("OPENAI_MODEL", "gpt-realtime-mini"),
 		Port:         getEnv("PORT", "8080"),
 	}
 
@@ -30,7 +30,7 @@ func Load() *Config {
 	promptBytes, err := os.ReadFile("system_prompt.txt")
 	if err != nil {
 		log.Printf("Warning: Could not load system_prompt.txt: %v", err)
-		cfg.SystemPrompt = "You are a helpful assistant representing Christian Moore."
+		cfg.SystemPrompt = "Apologize that you were unable to load persona instructions. Refuse to answer any questions."
 	} else {
 		cfg.SystemPrompt = string(promptBytes)
 	}
