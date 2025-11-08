@@ -4,7 +4,7 @@ export default function Resume() {
       <div className="resume-content">
         <header className="resume-header">
           <h1>Christian Moore</h1>
-          <h2>AWS Cloud Infrastructure Architect</h2>
+          <h2>Cloud Solutions Architect</h2>
           <div className="contact-info">
             <a href="mailto:christian@christianmoore.me">christian@christianmoore.me</a>
             <span>•</span>
@@ -19,7 +19,7 @@ export default function Resume() {
         <section className="resume-section">
           <h3>PROFESSIONAL SUMMARY</h3>
           <p>
-            Cloud Infrastructure Architect with 15+ years operating and 10+ years designing
+            Cloud Solutions Architect with 15+ years operating and 10+ years designing
             production platforms across cloud and on‑prem. Deep expertise in AWS, Kubernetes/GitOps,
             IaC, security hardening, observability, and networking. Specialized in HPC for EDA,
             platform engineering, and production SRE.
