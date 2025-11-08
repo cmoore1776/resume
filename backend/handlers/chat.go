@@ -26,9 +26,16 @@ const (
 	MessageRateLimit = time.Second * 5 // 1 message per 5 seconds
 	MessageBurst     = 3                // Allow burst of 3 messages
 
-	// Connection timeout
-	ConnectionTimeout = 10 * time.Minute // WebSocket connection timeout
-	PingInterval      = 1 * time.Minute  // Ping interval for keepalive
+	// Connection limits
+	MaxConnectionsPerIP = 2              // Maximum concurrent connections per IP address
+	ConnectionTimeout   = 10 * time.Minute // WebSocket connection timeout
+	PingInterval        = 1 * time.Minute  // Ping interval for keepalive
+)
+
+// Connection tracking for per-IP limits
+var (
+	connectionsMutex sync.Mutex
+	connectionsPerIP = make(map[string]int)
 )
 
 var upgrader = websocket.Upgrader{
@@ -81,6 +88,36 @@ type ServerMessage struct {
 }
 
 func (h *ChatHandler) HandleWebSocket(c *gin.Context) {
+	// Get client IP (respects X-Forwarded-For from trusted proxies)
+	clientIP := c.ClientIP()
+
+	// Check concurrent connection limit per IP
+	connectionsMutex.Lock()
+	currentConnections := connectionsPerIP[clientIP]
+	if currentConnections >= MaxConnectionsPerIP {
+		connectionsMutex.Unlock()
+		log.Printf("Connection limit exceeded for IP %s (%d/%d)", clientIP, currentConnections, MaxConnectionsPerIP)
+		c.JSON(http.StatusTooManyRequests, gin.H{
+			"error": "Too many concurrent connections from your IP address",
+		})
+		return
+	}
+	connectionsPerIP[clientIP]++
+	connectionsMutex.Unlock()
+
+	// Ensure connection count is decremented on exit
+	defer func() {
+		connectionsMutex.Lock()
+		connectionsPerIP[clientIP]--
+		if connectionsPerIP[clientIP] <= 0 {
+			delete(connectionsPerIP, clientIP) // Clean up map entry
+		}
+		connectionsMutex.Unlock()
+		log.Printf("Connection closed for IP %s (remaining: %d)", clientIP, connectionsPerIP[clientIP])
+	}()
+
+	log.Printf("New WebSocket connection from IP %s (%d/%d concurrent)", clientIP, currentConnections+1, MaxConnectionsPerIP)
+
 	// Upgrade connection to WebSocket
 	clientWS, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
