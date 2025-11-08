@@ -14,7 +14,8 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [currentAssistantMessage, setCurrentAssistantMessage] = useState('');
-  const [isMuted, setIsMuted] = useState(false);
+  const [volume, setVolume] = useState(0.8); // Default 80% volume
+  const [showVolumeSlider, setShowVolumeSlider] = useState(false);
 
   // Authentication state
   const [jwtToken, setJwtToken] = useState<string | null>(null);
@@ -95,13 +96,13 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
         const source = audioContext.createBufferSource();
         source.buffer = audioBuffer;
 
-        // Create gain node for mute control
+        // Create gain node for volume control
         const gainNode = audioContext.createGain();
         source.connect(gainNode);
         gainNode.connect(audioContext.destination);
 
-        // Set volume based on mute state
-        gainNode.gain.value = isMuted ? 0 : 1;
+        // Set volume from slider (0.0 to 1.0)
+        gainNode.gain.value = volume;
 
         await new Promise<void>((resolve) => {
           source.onended = () => resolve();
@@ -116,7 +117,7 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
         onSpeakingChange(false);
       }
     }
-  }, [onSpeakingChange, isMuted]);
+  }, [onSpeakingChange, volume]);
 
   // Initialize WebSocket connection (only when authenticated)
   useEffect(() => {
@@ -348,14 +349,31 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
               disabled={isLoading}
               className="message-input"
             />
-            <button
-              type="button"
-              onClick={() => setIsMuted(!isMuted)}
-              className="mute-button"
-              title={isMuted ? "Unmute" : "Mute"}
-            >
-              <i className={`fas fa-fw ${isMuted ? 'fa-volume-xmark' : 'fa-volume-high'}`}></i>
-            </button>
+            <div className="volume-control">
+              {showVolumeSlider && (
+                <div className="volume-slider-container">
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={volume * 100}
+                    onChange={(e) => setVolume(Number(e.target.value) / 100)}
+                    className="volume-slider"
+                    onBlur={() => setShowVolumeSlider(false)}
+                    autoFocus
+                  />
+                  <div className="volume-label">{Math.round(volume * 100)}%</div>
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowVolumeSlider(!showVolumeSlider)}
+                className="volume-button"
+                title="Volume"
+              >
+                <i className={`fas fa-fw ${volume === 0 ? 'fa-volume-xmark' : volume < 0.5 ? 'fa-volume-low' : 'fa-volume-high'}`}></i>
+              </button>
+            </div>
             <button
               type="submit"
               disabled={isLoading || !input.trim() || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN}
