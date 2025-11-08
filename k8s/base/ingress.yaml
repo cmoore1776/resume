@@ -1,0 +1,64 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: avatar-ingress
+  namespace: christianmoore
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - christianmoore.me
+    - www.christianmoore.me
+    secretName: christianmoore-tls
+  rules:
+  - host: christianmoore.me
+    http:
+      paths:
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: avatar-backend
+            port:
+              number: 8080
+      - path: /audio
+        pathType: Prefix
+        backend:
+          service:
+            name: avatar-backend
+            port:
+              number: 8080
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: avatar-frontend
+            port:
+              number: 80
+  - host: www.christianmoore.me
+    http:
+      paths:
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: avatar-backend
+            port:
+              number: 8080
+      - path: /audio
+        pathType: Prefix
+        backend:
+          service:
+            name: avatar-backend
+            port:
+              number: 8080
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: avatar-frontend
+            port:
+              number: 80

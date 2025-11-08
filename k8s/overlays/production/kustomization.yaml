@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: christianmoore
+
+bases:
+  - ../../base
+
+images:
+  - name: christianmoore/avatar-backend
+    newTag: latest
+  - name: christianmoore/avatar-frontend
+    newTag: latest
+
+# You can add production-specific configurations here
+# such as replica count overrides, resource limits, etc.

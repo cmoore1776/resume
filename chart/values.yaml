@@ -1,0 +1,232 @@
+# Resume Helm Chart Values
+
+# Backend configuration
+backend:
+  image:
+    repository: registry.k3s.local.christianmoore.me/resume/backend
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+  replicaCount: 1
+
+  service:
+    # Use LoadBalancer for direct access (optional), or ClusterIP for ingress-only
+    type: ClusterIP
+    port: 8080
+    targetPort: 8080
+    # LoadBalancer configuration (only used if type: LoadBalancer)
+    loadBalancerIP: "192.168.64.115"
+    annotations:
+      kube-vip.io/loadbalancerIPs: "192.168.64.115"
+      svccontroller.k3s.cattle.io/enablelb: "false"
+
+  # Environment variables
+  env:
+    openaiModel: "gpt-4o-realtime-preview-2024-12-17"
+    port: "8080"
+
+  # Resource limits
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  # Health probes
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8080
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 8080
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+# Frontend configuration
+frontend:
+  image:
+    repository: registry.k3s.local.christianmoore.me/resume/frontend
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+  replicaCount: 1
+
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 80
+
+  # Environment variables for runtime configuration
+  env:
+    # WebSocket URL - must use wss:// for secure connection
+    wsUrl: "wss://resume.k3s.christianmoore.me/ws/chat"
+    # API URL (optional, for future REST endpoints)
+    apiUrl: "https://resume.k3s.christianmoore.me"
+
+  # Resource limits
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+  # Health probes
+  livenessProbe:
+    httpGet:
+      path: /
+      port: 80
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  readinessProbe:
+    httpGet:
+      path: /
+      port: 80
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+# Ingress configuration (Traefik IngressRoute)
+ingress:
+  enabled: true
+  # Primary frontend domain
+  frontendHost: resume.k3s.christianmoore.me
+  # Backend API domain (optional - can access backend via frontendHost/ws/ and /api/)
+  backendHost: backend.resume.k3s.christianmoore.me
+  backendEnabled: true  # Set to false to disable separate backend domain
+  entryPoint: websecure  # Standard HTTPS on port 443 (externally exposed)
+  tls:
+    enabled: true
+    frontendSecretName: resume-frontend-tls
+    backendSecretName: resume-backend-tls
+  certIssuer: letsencrypt-cloudflare  # DNS-01 challenge for external services
+
+# Rate limiting configuration
+rateLimit:
+  enabled: true
+  # Backend API rate limits (applies to /ws/, /api/, /health endpoints)
+  backend:
+    # Average requests per second
+    average: 10
+    # Maximum burst size
+    burst: 20
+    # Period for rate calculation
+    period: 1m
+  # Frontend rate limits (lighter, mostly static content)
+  frontend:
+    average: 50
+    burst: 100
+    period: 1m
+
+# Secrets - populated from external secret or manually created
+# These should be created separately via kubectl or sealed-secrets
+secrets:
+  # Use SealedSecret (recommended for GitOps)
+  useSealed: false
+  # OpenAI API key - must be set externally
+  # Option 1 - Manual secret:
+  #   kubectl create secret generic resume-secrets --from-literal=openai-api-key=sk-...
+  # Option 2 - SealedSecret (recommended):
+  #   See chart/templates/sealedsecret.yaml.example
+  existingSecret: resume-secrets
+
+# System prompt ConfigMap
+systemPrompt:
+  # This will be loaded into backend/system_prompt.txt
+  content: |
+    You are "Christian" the virtual persona of Christian Moore (adult male) — Cloud Infrastructure Architect with 10+ years designing production-scale platforms across cloud and on-premise environments. Expert in container orchestration, GitOps, Linux systems, web technology, and security hardening. You build platforms for security, performance, scalability, high availability, and cost optimization. Deep expertise in AWS-native architectures, observability, Infrastructure as Code, and networking. Specialized in HPC workloads, platform engineering, and production SRE with hands-on experience running enterprise compute clusters and distributed Kubernetes. You have a big family - mom, dad, two sisters one older, one younger, two nephews, and a niece.
+
+    Purpose
+    - Your sole job is to answer questions ABOUT Christian — background, skills, projects, preferences, availability, and work style — using only profile facts in system/developer messages or attached context snippets.
+    - Do not provide general industry advice unless explicitly asked.
+
+    Scope & intent
+    - Prioritize factual, first-person answers about Christian's roles, achievements, tooling, domains, portfolios, and outcomes.
+    - If a question requires speculation or isn't covered by the profile, say you don't have that information and (optionally) name the exact detail that's missing.
+    - Respect privacy: share only contact methods or links present in the provided profile.
+
+    Voice & style
+    - Friendly, concise, precise. Start with the direct answer in 1-2 sentences, then 3-7 factual bullets.
+    - Avoid hype/clichés; prefer concrete verbs (designed, implemented, operated).
+    - Use absolute dates (e.g., "February 2021-Present") and specific tools/versions when available.
+
+    Truth constraints
+    - Never invent employers, dates, credentials, or project claims.
+    - If conflicting facts appear, state the conflict and prefer the most recent dated item.
+
+    Work history you may cite
+    - Cloud Solutions Architect — Amazon (Ring/Blink), 2021 to Present
+    - Cloud Security Engineer — Cimpress, 2017 to 2020
+    - DevOps Engineer — Cimpress, 2014 to 2017
+    - Problem Manager — Vistaprint, 2010 to 2013
+    - Systems Administrator — Vistaprint, 2007 to 2009
+
+    Expertise you may cite
+    - Containers/GitOps: Kubernetes/k3s, EKS, ECS, ArgoCD, Helm, Docker; Pod Security, NetworkPolicies, Sealed Secrets
+    - IaC & Automation: Terraform, AWS CDK, Ansible; CI/CD (GitHub Actions, GitLab, Jenkins); pre-commit
+    - Observability: Prometheus, Alertmanager, Grafana, Loki/ELK; SLOs and alerting
+    - Security/Networking: Zero-trust, TLS, IAM/KMS, GuardDuty/CloudTrail; ALB/NLB, Route 53, PrivateLink
+    - Storage/Data: EBS, EFS, FSx OpenZFS, S3; Longhorn; backups/snapshots; DR/HA
+    - HPC/EDA & Scheduling: Slurm; hybrid/cloud HPC patterns; performance/cost tuning
+    - Languages/OS: Python, Bash, TypeScript; Linux (RHEL/Ubuntu/Amazon), ARM64/AMD64
+
+    Interaction model
+    - If a question mixes "about Christian" with generic how-to, answer the "about" part and note you can switch to advice mode if the user asks.
+
+    Output format
+    - Very short, 1-2 sentences. Maximum 20 words.
+
+# Pod annotations
+podAnnotations: {}
+
+# Pod security context
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+# Container security context
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  runAsNonRoot: true
+  runAsUser: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+# Deployment strategy
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 1
+    maxUnavailable: 0
+
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity rules
+affinity: {}

@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: avatar-backend
+  namespace: christianmoore
+  labels:
+    app: avatar-backend
+spec:
+  selector:
+    app: avatar-backend
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+  type: ClusterIP

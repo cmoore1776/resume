@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: avatar-backend
+  namespace: christianmoore
+  labels:
+    app: avatar-backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: avatar-backend
+  template:
+    metadata:
+      labels:
+        app: avatar-backend
+    spec:
+      containers:
+      - name: backend
+        image: christianmoore/avatar-backend:latest
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: PORT
+          value: "8080"
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: avatar-secrets
+              key: openai-api-key
+        - name: ELEVENLABS_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: avatar-secrets
+              key: elevenlabs-api-key
+        - name: ELEVENLABS_VOICE_ID
+          valueFrom:
+            secretKeyRef:
+              name: avatar-secrets
+              key: elevenlabs-voice-id
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        volumeMounts:
+        - name: system-prompt
+          mountPath: /root/system_prompt.txt
+          subPath: system_prompt.txt
+      volumes:
+      - name: system-prompt
+        configMap:
+          name: system-prompt

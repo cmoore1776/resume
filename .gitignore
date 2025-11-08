@@ -1,0 +1,40 @@
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Backend
+backend/bin/
+backend/*.exe
+backend/*.dll
+backend/*.so
+backend/*.dylib
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+frontend/*.local
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Kubernetes secrets
+k8s/overlays/*/secrets.yaml
+
+# Helm
+chart/charts/
+chart/*.tgz
+*.lock

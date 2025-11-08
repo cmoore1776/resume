@@ -1,0 +1,6 @@
+apiVersion: v2
+name: resume
+description: Interactive AI resume with OpenAI GPT Realtime API
+type: application
+version: 1.0.0
+appVersion: "latest"
