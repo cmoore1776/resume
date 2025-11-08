@@ -6,6 +6,9 @@ kind: Certificate
 metadata:
   name: {{ include "resume.fullname" . }}-frontend-tls
   namespace: {{ .Release.Namespace }}
+  annotations:
+    # Prevent Helm from recreating this resource on upgrades
+    helm.sh/resource-policy: keep
   labels:
     {{- include "resume.labels" . | nindent 4 }}
 spec:
@@ -23,6 +26,9 @@ kind: Certificate
 metadata:
   name: {{ include "resume.fullname" . }}-backend-tls
   namespace: {{ .Release.Namespace }}
+  annotations:
+    # Prevent Helm from recreating this resource on upgrades
+    helm.sh/resource-policy: keep
   labels:
     {{- include "resume.labels" . | nindent 4 }}
 spec:
