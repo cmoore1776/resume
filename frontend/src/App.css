@@ -379,6 +379,27 @@ body {
   cursor: not-allowed;
 }
 
+.mute-button {
+  padding: 0.75rem;
+  min-width: 3rem;
+  background: #2a2a2a;
+  border: 1px solid #3a3a3a;
+  border-radius: 0.5rem;
+  color: #ffffff;
+  font-size: 1.25rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mute-button:hover {
+  background: #3a3a3a;
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(42, 42, 42, 0.4);
+}
+
 .send-button {
   padding: 0.75rem 2rem;
   background: #4a9eff;

@@ -126,7 +126,7 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
     const wsUrl = import.meta.env.VITE_WS_URL || 'wss://resume.k3s.christianmoore.me/ws/chat';
 
     // Send JWT token via Sec-WebSocket-Protocol header (WebSocket auth method)
-    const ws = new WebSocket(wsUrl, ['access_token', jwtToken]);
+    const ws = new WebSocket(wsUrl, jwtToken);
 
     ws.onopen = () => {
       // WebSocket connection established
@@ -213,18 +213,47 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
 
     ws.onerror = (error) => {
       console.error('WebSocket error:', error);
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: 'Connection error. Please refresh the page.',
-        },
-      ]);
-      setIsLoading(false);
     };
 
-    ws.onclose = () => {
-      // WebSocket connection closed
+    ws.onclose = (event) => {
+      console.log('WebSocket closed with code:', event.code);
+
+      // If connection failed to establish (likely auth error), refresh JWT
+      // Code 1006 means abnormal closure (connection failed before opening)
+      if (event.code === 1006 && !event.wasClean) {
+        console.log('WebSocket failed to connect, likely JWT expired. Refreshing token...');
+        localStorage.removeItem('jwt_token');
+        setJwtToken(null);
+        setIsAuthenticating(true);
+
+        // Fetch new JWT token
+        const apiUrl = import.meta.env.VITE_API_URL || 'https://resume.k3s.christianmoore.me';
+        fetch(`${apiUrl}/api/token`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        })
+          .then(res => res.json())
+          .then(data => {
+            if (data.jwt) {
+              console.log('Got new JWT token, reconnecting...');
+              setJwtToken(data.jwt);
+              localStorage.setItem('jwt_token', data.jwt);
+            }
+          })
+          .catch(err => {
+            console.error('Failed to refresh JWT token:', err);
+            setMessages((prev) => [
+              ...prev,
+              {
+                role: 'assistant',
+                content: 'Authentication failed. Please refresh the page.',
+              },
+            ]);
+          })
+          .finally(() => {
+            setIsAuthenticating(false);
+          });
+      }
     };
 
     wsRef.current = ws;
