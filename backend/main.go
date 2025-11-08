@@ -45,6 +45,7 @@ func main() {
 	{
 		api.POST("/verify-turnstile", authHandler.HandleVerifyTurnstile)
 		api.GET("/turnstile-sitekey", authHandler.HandleGetSiteKey)
+		api.POST("/token", authHandler.HandleGetToken) // Simple JWT issuance (rate-limited by Traefik)
 	}
 
 	// Routes

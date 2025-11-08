@@ -110,6 +110,24 @@ func (h *AuthHandler) HandleGetSiteKey(c *gin.Context) {
 	})
 }
 
+// HandleGetToken issues a JWT token without verification (rate-limited by Traefik)
+func (h *AuthHandler) HandleGetToken(c *gin.Context) {
+	// Generate JWT token
+	token, err := h.generateJWT()
+	if err != nil {
+		log.Printf("JWT generation error: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Token generation failed",
+		})
+		return
+	}
+
+	log.Printf("JWT issued for IP %s", c.ClientIP())
+	c.JSON(http.StatusOK, gin.H{
+		"jwt": token,
+	})
+}
+
 // verifyTurnstileToken verifies the token with Cloudflare's API
 func (h *AuthHandler) verifyTurnstileToken(token, remoteIP string) (bool, error) {
 	// If no secret configured, allow (for development)

@@ -9,18 +9,6 @@ interface ChatProps {
   onSpeakingChange: (isSpeaking: boolean) => void;
 }
 
-// Declare turnstile on window for TypeScript
-declare global {
-  interface Window {
-    turnstile?: {
-      render: (element: string | HTMLElement, options: {
-        sitekey: string;
-        callback: string | ((token: string) => void);
-      }) => void;
-    };
-  }
-}
-
 export default function Chat({ onSpeakingChange }: ChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -30,17 +18,13 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
 
   // Authentication state
   const [jwtToken, setJwtToken] = useState<string | null>(null);
-  const [turnstileSiteKey, setTurnstileSiteKey] = useState<string>('');
-  const [isVerified, setIsVerified] = useState(false);
-  const [isVerifying, setIsVerifying] = useState(false);
-  const [authError, setAuthError] = useState<string | null>(null);
+  const [isAuthenticating, setIsAuthenticating] = useState(true);
 
   const wsRef = useRef<WebSocket | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioBuffersRef = useRef<Float32Array[]>([]);
   const isPlayingAudioRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const turnstileRendered = useRef(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -50,120 +34,37 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
     scrollToBottom();
   }, [messages, currentAssistantMessage]);
 
-  // Check for existing JWT on mount and fetch Turnstile site key
+  // Automatically fetch JWT token on mount
   useEffect(() => {
     // Check if we already have a valid JWT in localStorage
     const existingJWT = localStorage.getItem('jwt_token');
     if (existingJWT) {
-      console.log('Found existing JWT token in localStorage');
       setJwtToken(existingJWT);
-      setIsVerified(true);
-      return; // Skip Turnstile if we have a valid token
+      setIsAuthenticating(false);
+      return;
     }
 
-    // No existing JWT, fetch Turnstile site key
+    // Request a new JWT token
     const apiUrl = import.meta.env.VITE_API_URL || 'https://resume.k3s.christianmoore.me';
 
-    fetch(`${apiUrl}/api/turnstile-sitekey`)
+    fetch(`${apiUrl}/api/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    })
       .then(res => res.json())
       .then(data => {
-        setTurnstileSiteKey(data.siteKey);
+        if (data.jwt) {
+          setJwtToken(data.jwt);
+          localStorage.setItem('jwt_token', data.jwt);
+        }
       })
       .catch(err => {
-        console.error('Failed to fetch Turnstile site key:', err);
-        setAuthError('Failed to load authentication. Please refresh the page.');
+        console.error('Failed to fetch JWT token:', err);
+      })
+      .finally(() => {
+        setIsAuthenticating(false);
       });
   }, []);
-
-  // Turnstile success callback - must be stable reference for window
-  const handleTurnstileSuccess = useCallback(async (token: string) => {
-    console.log('Turnstile callback triggered with token:', token);
-    setIsVerifying(true);
-    setAuthError(null);
-
-    const apiUrl = import.meta.env.VITE_API_URL || 'https://resume.k3s.christianmoore.me';
-
-    try {
-      console.log('Sending verification request to:', `${apiUrl}/api/verify-turnstile`);
-      const response = await fetch(`${apiUrl}/api/verify-turnstile`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token })
-      });
-
-      const data = await response.json();
-      console.log('Verification response:', data);
-
-      if (data.success && data.jwt) {
-        console.log('Verification successful, setting JWT');
-        setJwtToken(data.jwt);
-        localStorage.setItem('jwt_token', data.jwt);
-        setIsVerified(true);
-      } else {
-        console.error('Verification failed:', data);
-        setAuthError(data.error || 'Verification failed. Please try again.');
-      }
-    } catch (err) {
-      console.error('Turnstile verification error:', err);
-      setAuthError('Verification failed. Please refresh and try again.');
-    } finally {
-      setIsVerifying(false);
-    }
-  }, [setIsVerifying, setAuthError, setJwtToken, setIsVerified]);
-
-  // Setup global callback for Turnstile
-  useEffect(() => {
-    // Create stable global callback that Turnstile can call by name
-    (window as Window & { onTurnstileCallback?: (token: string) => void }).onTurnstileCallback = handleTurnstileSuccess;
-
-    return () => {
-      delete (window as Window & { onTurnstileCallback?: (token: string) => void }).onTurnstileCallback;
-    };
-  }, [handleTurnstileSuccess]);
-
-  // Poll for Turnstile script and render widget
-  useEffect(() => {
-    if (!turnstileSiteKey || isVerified || turnstileRendered.current) return;
-
-    console.log('Attempting to render Turnstile widget with sitekey:', turnstileSiteKey);
-
-    const renderWidget = () => {
-      const element = document.getElementById('turnstile-widget');
-      console.log('Turnstile element:', element);
-      console.log('Turnstile API loaded:', !!window.turnstile);
-
-      if (element && window.turnstile) {
-        try {
-          console.log('Rendering Turnstile widget with callback: onTurnstileCallback');
-          window.turnstile.render(element, {
-            sitekey: turnstileSiteKey,
-            callback: 'onTurnstileCallback',
-          });
-          turnstileRendered.current = true;
-          console.log('Turnstile widget rendered successfully');
-        } catch (error) {
-          console.error('Failed to render Turnstile widget:', error);
-        }
-      } else {
-        console.log('Cannot render: element or turnstile API not ready');
-      }
-    };
-
-    // Try rendering immediately
-    renderWidget();
-
-    // If not rendered, poll for script to load
-    if (!turnstileRendered.current) {
-      const interval = setInterval(() => {
-        if (window.turnstile) {
-          renderWidget();
-          clearInterval(interval);
-        }
-      }, 100);
-
-      return () => clearInterval(interval);
-    }
-  }, [turnstileSiteKey, isVerified, handleTurnstileSuccess]);
 
   const playAudioBuffers = useCallback(async () => {
     if (isPlayingAudioRef.current) return;
@@ -360,8 +261,8 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
 
   return (
     <div className="chat-container">
-      {/* Show Turnstile widget if not verified */}
-      {!isVerified && (
+      {/* Show loading state while authenticating */}
+      {isAuthenticating && (
         <div className="auth-container" style={{
           display: 'flex',
           flexDirection: 'column',
@@ -370,37 +271,15 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
           minHeight: '400px',
           padding: '2rem'
         }}>
-          <h2>Welcome! Verify to continue</h2>
+          <h2>Loading...</h2>
           <p style={{ marginBottom: '1.5rem', color: '#666' }}>
-            Please complete the verification to chat with Christian's AI persona
+            Connecting to chat service
           </p>
-
-          {authError && (
-            <div style={{
-              color: '#d32f2f',
-              backgroundColor: '#ffebee',
-              padding: '0.75rem 1rem',
-              borderRadius: '4px',
-              marginBottom: '1rem',
-              maxWidth: '400px'
-            }}>
-              {authError}
-            </div>
-          )}
-
-          {isVerifying && (
-            <div style={{ marginBottom: '1rem', color: '#666' }}>
-              Verifying...
-            </div>
-          )}
-
-          {/* Turnstile widget placeholder */}
-          <div id="turnstile-widget"></div>
         </div>
       )}
 
-      {/* Show chat interface if verified */}
-      {isVerified && (
+      {/* Show chat interface once authenticated */}
+      {!isAuthenticating && (
         <>
           <div className="messages">
             {messages.length === 0 && !currentAssistantMessage && (
