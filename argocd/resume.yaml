@@ -13,7 +13,7 @@ spec:
   project: default
 
   source:
-    repoURL: git@github.com:cmoore1776/resume.git
+    repoURL: https://github.com/cmoore1776/resume.git
     targetRevision: main
     path: chart
     helm:
