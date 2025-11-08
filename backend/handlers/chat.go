@@ -304,6 +304,7 @@ func (h *ChatHandler) HandleWebSocket(c *gin.Context) {
 				switch e := event.(type) {
 				case openairt.ResponseOutputAudioTranscriptDeltaEvent:
 					// Send text delta to client (from audio transcript)
+					log.Printf("Assistant response delta: %s", e.Delta)
 					if err := sendJSON(ServerMessage{
 						Type: "text_delta",
 						Text: e.Delta,
@@ -313,6 +314,7 @@ func (h *ChatHandler) HandleWebSocket(c *gin.Context) {
 
 				case openairt.ResponseOutputAudioTranscriptDoneEvent:
 					// Text is complete
+					log.Printf("Assistant response completed")
 					if err := sendJSON(ServerMessage{
 						Type: "text_done",
 					}); err != nil {
@@ -413,6 +415,7 @@ func (h *ChatHandler) HandleWebSocket(c *gin.Context) {
 			}
 
 			log.Printf("Message validated: length=%d, rate_limit_ok=true", len(sanitized))
+			log.Printf("User message: %s", sanitized)
 
 			// Create conversation item with user message (use sanitized input)
 			item := openairt.ConversationItemCreateEvent{
