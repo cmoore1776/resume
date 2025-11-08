@@ -27,7 +27,7 @@ const (
 	MessageBurst     = 3                // Allow burst of 3 messages
 
 	// Connection limits
-	MaxConnectionsPerIP = 2              // Maximum concurrent connections per IP address
+	MaxConnectionsPerIP = 10             // Maximum concurrent connections per IP address (shared by Traefik proxy)
 	ConnectionTimeout   = 10 * time.Minute // WebSocket connection timeout
 	PingInterval        = 1 * time.Minute  // Ping interval for keepalive
 )
