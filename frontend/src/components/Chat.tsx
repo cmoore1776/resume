@@ -27,6 +27,7 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
   const isPlayingAudioRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const volumeControlRef = useRef<HTMLDivElement>(null);
+  const sliderRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -35,6 +36,19 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
   useEffect(() => {
     scrollToBottom();
   }, [messages, currentAssistantMessage]);
+
+  // Handle volume slider dragging
+  const handleVolumeChange = useCallback((clientY: number) => {
+    if (!sliderRef.current) return;
+
+    const rect = sliderRef.current.getBoundingClientRect();
+    const sliderHeight = rect.height;
+    const clickY = clientY - rect.top;
+
+    // Invert the Y axis (top = 100%, bottom = 0%)
+    const newVolume = Math.max(0, Math.min(1, 1 - (clickY / sliderHeight)));
+    setVolume(newVolume);
+  }, []);
 
   // Close volume slider when clicking outside
   useEffect(() => {
@@ -52,6 +66,37 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [showVolumeSlider]);
+
+  // Handle mouse/touch events for custom slider
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!showVolumeSlider) return;
+      handleVolumeChange(e.clientY);
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!showVolumeSlider || e.touches.length === 0) return;
+      e.preventDefault();
+      handleVolumeChange(e.touches[0].clientY);
+    };
+
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    if (showVolumeSlider && sliderRef.current) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('touchmove', handleTouchMove, { passive: false });
+      document.addEventListener('mouseup', handleMouseUp);
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('touchmove', handleTouchMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [showVolumeSlider, handleVolumeChange]);
 
   // Automatically fetch JWT token on mount
   useEffect(() => {
@@ -332,7 +377,7 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
           <div className="messages">
             {messages.length === 0 && !currentAssistantMessage && (
               <div className="welcome-message">
-                <h2>Hi! I'm Christian's AI persona</h2>
+                <h2>I'm AI Christian</h2>
                 <p>Ask me about my professional experience!</p>
               </div>
             )}
@@ -371,14 +416,22 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
               {showVolumeSlider && (
                 <div className="volume-slider-container">
                   <div className="volume-label">{Math.round(volume * 100)}%</div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={volume * 100}
-                    onChange={(e) => setVolume(Number(e.target.value) / 100)}
-                    className="volume-slider"
-                  />
+                  <div
+                    className="volume-slider-track"
+                    ref={sliderRef}
+                    onMouseDown={(e) => handleVolumeChange(e.clientY)}
+                    onTouchStart={(e) => {
+                      if (e.touches.length > 0) {
+                        handleVolumeChange(e.touches[0].clientY);
+                      }
+                    }}
+                  >
+                    <div className="volume-slider-fill" style={{ height: `${volume * 100}%` }} />
+                    <div
+                      className="volume-slider-thumb"
+                      style={{ bottom: `calc(${volume * 100}% - 8px)` }}
+                    />
+                  </div>
                 </div>
               )}
               <button
