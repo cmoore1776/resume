@@ -8,8 +8,6 @@ export default function Resume() {
           <div className="contact-info">
             <a href="mailto:christian@christianmoore.me">christian@christianmoore.me</a>
             <span>•</span>
-            <a href="https://christianmoore.me" target="_blank" rel="noopener noreferrer">christianmoore.me</a>
-            <span>•</span>
             <a href="https://www.linkedin.com/in/christian-moore-7672861ab" target="_blank" rel="noopener noreferrer">LinkedIn</a>
             <span>•</span>
             <span>New Hampshire</span>
