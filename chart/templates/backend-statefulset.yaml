@@ -34,7 +34,7 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/system-prompt: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
       {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
       {{- end }}
@@ -93,8 +93,13 @@ spec:
           volumeMounts:
             - name: system-prompt
               mountPath: /app/data
+              readOnly: true
           resources:
             {{- toYaml .Values.backend.resources | nindent 12 }}
+      volumes:
+        - name: system-prompt
+          configMap:
+            name: {{ include "resume.fullname" . }}-system-prompt
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -107,15 +112,3 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-  volumeClaimTemplates:
-    - metadata:
-        name: system-prompt
-        labels:
-          {{- include "resume.labels" . | nindent 10 }}
-      spec:
-        accessModes:
-          - ReadWriteOnce
-        storageClassName: {{ .Values.systemPrompt.storageClassName | default "longhorn" }}
-        resources:
-          requests:
-            storage: 10Mi
