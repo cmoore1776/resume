@@ -26,7 +26,7 @@ spec:
       labels:
         {{- include "resume.backend.selectorLabels" . | nindent 8 }}
     spec:
-      {{- with .Values.podSecurityContext }}
+      {{- with .Values.backend.podSecurityContext | default .Values.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
@@ -34,7 +34,7 @@ spec:
         - name: backend
           image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
           imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
-          {{- with .Values.securityContext }}
+          {{- with .Values.backend.securityContext | default .Values.securityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
