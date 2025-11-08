@@ -267,8 +267,6 @@ func (h *ChatHandler) HandleWebSocket(c *gin.Context) {
 		wsMutex.Unlock()
 		if err != nil {
 			log.Printf("Error sending %s to client: %v", msg.Type, err)
-		} else {
-			log.Printf("Successfully sent %s to client", msg.Type)
 		}
 		return err
 	}
@@ -296,9 +294,6 @@ func (h *ChatHandler) HandleWebSocket(c *gin.Context) {
 					})
 					return
 				}
-
-				// Log event type for debugging
-				log.Printf("Received OpenAI event: %T", event)
 
 				// Handle different event types
 				switch e := event.(type) {
