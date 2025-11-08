@@ -62,7 +62,7 @@ spec:
           {{- end }}
           volumeMounts:
             - name: system-prompt
-              mountPath: /app/system_prompt.txt
+              mountPath: /home/appuser/system_prompt.txt
               subPath: system_prompt.txt
               readOnly: true
           resources:

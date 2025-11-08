@@ -18,7 +18,12 @@ FROM alpine:latest
 
 RUN apk --no-cache add ca-certificates
 
-WORKDIR /root/
+# Create non-root user and group
+RUN addgroup -g 1000 appuser && \
+    adduser -D -u 1000 -G appuser appuser
+
+# Use non-root user's home directory
+WORKDIR /home/appuser
 
 # Copy the binary from builder
 COPY --from=builder /app/main .
@@ -27,11 +32,14 @@ RUN chmod +x ./main
 # Copy system prompt (can be overridden by volume mount)
 COPY system_prompt.txt .
 
-# Create directory for audio cache
-RUN mkdir -p audio_cache && chmod -R 777 audio_cache
+# Create directory for audio cache with proper permissions
+RUN mkdir -p audio_cache && chmod -R 755 audio_cache
 
 # Change ownership to non-root user
-RUN chown -R 1000:1000 /root
+RUN chown -R appuser:appuser /home/appuser
+
+# Switch to non-root user
+USER appuser
 
 EXPOSE 8080
 

@@ -234,8 +234,8 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
       <div className="messages">
         {messages.length === 0 && !currentAssistantMessage && (
           <div className="welcome-message">
-            <h2>Hi! I'm Christian's AI agent</h2>
-            <p>Ask me about his professional experience!</p>
+            <h2>Hi! I'm Christian's AI persona</h2>
+            <p>Ask me about my professional experience!</p>
           </div>
         )}
         {messages.map((message, index) => (

@@ -2,15 +2,33 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
 	openairt "github.com/WqyJh/go-openai-realtime/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	"golang.org/x/time/rate"
+)
+
+// Security and validation constants
+const (
+	// Message validation
+	MaxMessageLength = 4000 // Maximum characters per message (reasonable for GPT-4)
+	MinMessageLength = 1    // Minimum characters per message
+
+	// Rate limiting
+	MessageRateLimit = time.Second * 5 // 1 message per 5 seconds
+	MessageBurst     = 3                // Allow burst of 3 messages
+
+	// Connection timeout
+	ConnectionTimeout = 10 * time.Minute // WebSocket connection timeout
+	PingInterval      = 1 * time.Minute  // Ping interval for keepalive
 )
 
 var upgrader = websocket.Upgrader{
@@ -83,6 +101,28 @@ func (h *ChatHandler) HandleWebSocket(c *gin.Context) {
 		}
 	}
 
+	// Create per-connection rate limiter (1 message per 5 seconds, burst of 3)
+	rateLimiter := rate.NewLimiter(rate.Every(MessageRateLimit), MessageBurst)
+	log.Printf("Rate limiter initialized: 1 message per %v, burst %d", MessageRateLimit, MessageBurst)
+
+	// Set connection timeout and deadlines
+	clientWS.SetReadDeadline(time.Now().Add(ConnectionTimeout))
+	clientWS.SetWriteDeadline(time.Now().Add(ConnectionTimeout))
+	log.Printf("Connection timeout set to %v", ConnectionTimeout)
+
+	// Configure ping/pong for keepalive and detecting dead connections
+	clientWS.SetPingHandler(func(appData string) error {
+		// Reset read deadline on ping
+		clientWS.SetReadDeadline(time.Now().Add(ConnectionTimeout))
+		return clientWS.WriteControl(websocket.PongMessage, []byte{}, time.Now().Add(10*time.Second))
+	})
+
+	clientWS.SetPongHandler(func(appData string) error {
+		// Reset read deadline on pong
+		clientWS.SetReadDeadline(time.Now().Add(ConnectionTimeout))
+		return nil
+	})
+
 	// Create OpenAI Realtime client
 	client := openairt.NewClient(h.apiKey)
 	ctx := context.Background()
@@ -133,6 +173,28 @@ func (h *ChatHandler) HandleWebSocket(c *gin.Context) {
 	done := make(chan struct{})
 	var doneOnce sync.Once
 	var wsMutex sync.Mutex // Protect WebSocket writes
+
+	// Periodic ping to keep connection alive and detect dead connections
+	go func() {
+		ticker := time.NewTicker(PingInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				wsMutex.Lock()
+				err := clientWS.WriteControl(websocket.PingMessage, []byte{}, time.Now().Add(10*time.Second))
+				wsMutex.Unlock()
+				if err != nil {
+					log.Printf("Failed to send ping: %v", err)
+					doneOnce.Do(func() { close(done) })
+					return
+				}
+				log.Printf("Ping sent to keep connection alive")
+			case <-done:
+				return
+			}
+		}
+	}()
 
 	// Helper function to send JSON with mutex and error logging
 	sendJSON := func(msg ServerMessage) error {
@@ -243,16 +305,59 @@ func (h *ChatHandler) HandleWebSocket(c *gin.Context) {
 
 		log.Printf("Received message from client: type=%s", msg.Type)
 
+		// Validate message type
 		switch msg.Type {
 		case "message":
-			// Create conversation item with user message
+			// Check rate limit BEFORE processing
+			if !rateLimiter.Allow() {
+				log.Printf("Rate limit exceeded for client")
+				sendJSON(ServerMessage{
+					Type:  "error",
+					Error: "Rate limit exceeded. Please wait before sending another message.",
+				})
+				continue
+			}
+
+			// Validate message length
+			messageLen := len(msg.Message)
+			if messageLen < MinMessageLength || messageLen > MaxMessageLength {
+				log.Printf("Invalid message length: %d (min: %d, max: %d)", messageLen, MinMessageLength, MaxMessageLength)
+				sendJSON(ServerMessage{
+					Type:  "error",
+					Error: fmt.Sprintf("Message must be between %d and %d characters", MinMessageLength, MaxMessageLength),
+				})
+				continue
+			}
+
+			// Sanitize input - trim whitespace and remove control characters
+			sanitized := strings.TrimSpace(msg.Message)
+			sanitized = strings.Map(func(r rune) rune {
+				if r < 32 && r != '\n' && r != '\t' {
+					return -1 // Remove control characters
+				}
+				return r
+			}, sanitized)
+
+			// Validate sanitized message is not empty
+			if len(sanitized) < MinMessageLength {
+				log.Printf("Message is empty after sanitization")
+				sendJSON(ServerMessage{
+					Type:  "error",
+					Error: "Message cannot be empty",
+				})
+				continue
+			}
+
+			log.Printf("Message validated: length=%d, rate_limit_ok=true", len(sanitized))
+
+			// Create conversation item with user message (use sanitized input)
 			item := openairt.ConversationItemCreateEvent{
 				Item: openairt.MessageItemUnion{
 					User: &openairt.MessageItemUser{
 						Content: []openairt.MessageContentInput{
 							{
 								Type: openairt.MessageContentTypeInputText,
-								Text: msg.Message,
+								Text: sanitized,
 							},
 						},
 					},
@@ -279,6 +384,15 @@ func (h *ChatHandler) HandleWebSocket(c *gin.Context) {
 				})
 				continue
 			}
+
+		default:
+			// Reject unknown message types
+			log.Printf("Invalid message type received: %s", msg.Type)
+			sendJSON(ServerMessage{
+				Type:  "error",
+				Error: "Invalid message type",
+			})
+			continue
 		}
 	}
 
