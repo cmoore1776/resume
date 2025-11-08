@@ -50,8 +50,18 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
     scrollToBottom();
   }, [messages, currentAssistantMessage]);
 
-  // Fetch Turnstile site key on mount
+  // Check for existing JWT on mount and fetch Turnstile site key
   useEffect(() => {
+    // Check if we already have a valid JWT in localStorage
+    const existingJWT = localStorage.getItem('jwt_token');
+    if (existingJWT) {
+      console.log('Found existing JWT token in localStorage');
+      setJwtToken(existingJWT);
+      setIsVerified(true);
+      return; // Skip Turnstile if we have a valid token
+    }
+
+    // No existing JWT, fetch Turnstile site key
     const apiUrl = import.meta.env.VITE_API_URL || 'https://resume.k3s.christianmoore.me';
 
     fetch(`${apiUrl}/api/turnstile-sitekey`)
@@ -67,12 +77,14 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
 
   // Turnstile success callback
   const handleTurnstileSuccess = useCallback(async (token: string) => {
+    console.log('Turnstile callback triggered with token:', token);
     setIsVerifying(true);
     setAuthError(null);
 
     const apiUrl = import.meta.env.VITE_API_URL || 'https://resume.k3s.christianmoore.me';
 
     try {
+      console.log('Sending verification request to:', `${apiUrl}/api/verify-turnstile`);
       const response = await fetch(`${apiUrl}/api/verify-turnstile`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -80,12 +92,15 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
       });
 
       const data = await response.json();
+      console.log('Verification response:', data);
 
       if (data.success && data.jwt) {
+        console.log('Verification successful, setting JWT');
         setJwtToken(data.jwt);
         localStorage.setItem('jwt_token', data.jwt);
         setIsVerified(true);
       } else {
+        console.error('Verification failed:', data);
         setAuthError(data.error || 'Verification failed. Please try again.');
       }
     } catch (err) {
@@ -100,10 +115,16 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
   useEffect(() => {
     if (!turnstileSiteKey || isVerified || turnstileRendered.current) return;
 
+    console.log('Attempting to render Turnstile widget with sitekey:', turnstileSiteKey);
+
     const renderWidget = () => {
       const element = document.getElementById('turnstile-widget');
+      console.log('Turnstile element:', element);
+      console.log('Turnstile API loaded:', !!window.turnstile);
+
       if (element && window.turnstile) {
         try {
+          console.log('Rendering Turnstile widget with callback:', handleTurnstileSuccess);
           window.turnstile.render(element, {
             sitekey: turnstileSiteKey,
             callback: handleTurnstileSuccess,
@@ -113,6 +134,8 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
         } catch (error) {
           console.error('Failed to render Turnstile widget:', error);
         }
+      } else {
+        console.log('Cannot render: element or turnstile API not ready');
       }
     };
 
