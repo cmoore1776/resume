@@ -18,8 +18,11 @@ func main() {
 		log.Fatal("OPENAI_API_KEY is required")
 	}
 
-	// Initialize handler
-	chatHandler := handlers.NewChatHandler(cfg.OpenAIAPIKey, cfg.OpenAIModel, cfg.SystemPrompt)
+	// Initialize auth handler
+	authHandler := handlers.NewAuthHandler(cfg.JWTSecret, cfg.TurnstileSecret, cfg.TurnstileSiteKey)
+
+	// Initialize chat handler
+	chatHandler := handlers.NewChatHandler(cfg.OpenAIAPIKey, cfg.OpenAIModel, cfg.SystemPrompt, authHandler)
 
 	// Setup Gin router
 	router := gin.Default()
@@ -32,14 +35,21 @@ func main() {
 	router.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"http://localhost:5173", "http://localhost:3000", "https://christianmoore.me", "https://resume.k3s.christianmoore.me"},
 		AllowMethods:     []string{"GET", "POST", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Upgrade", "Connection"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization", "Upgrade", "Connection", "Sec-WebSocket-Protocol"},
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
 	}))
 
+	// API Routes
+	api := router.Group("/api")
+	{
+		api.POST("/verify-turnstile", authHandler.HandleVerifyTurnstile)
+		api.GET("/turnstile-sitekey", authHandler.HandleGetSiteKey)
+	}
+
 	// Routes
 	router.GET("/health", chatHandler.HandleHealth)
-	router.GET("/ws/chat", chatHandler.HandleWebSocket) // WebSocket endpoint
+	router.GET("/ws/chat", chatHandler.HandleWebSocket) // WebSocket endpoint (requires JWT)
 
 	// Start server
 	log.Printf("Server starting on port %s", cfg.Port)

@@ -8,10 +8,13 @@ import (
 )
 
 type Config struct {
-	OpenAIAPIKey string
-	OpenAIModel  string
-	Port         string
-	SystemPrompt string
+	OpenAIAPIKey     string
+	OpenAIModel      string
+	Port             string
+	SystemPrompt     string
+	JWTSecret        string
+	TurnstileSecret  string
+	TurnstileSiteKey string
 }
 
 func Load() *Config {
@@ -21,9 +24,12 @@ func Load() *Config {
 	}
 
 	cfg := &Config{
-		OpenAIAPIKey: getEnv("OPENAI_API_KEY", ""),
-		OpenAIModel:  getEnv("OPENAI_MODEL", "gpt-realtime-mini"),
-		Port:         getEnv("PORT", "8080"),
+		OpenAIAPIKey:     getEnv("OPENAI_API_KEY", ""),
+		OpenAIModel:      getEnv("OPENAI_MODEL", "gpt-realtime-mini"),
+		Port:             getEnv("PORT", "8080"),
+		JWTSecret:        getEnv("JWT_SECRET", ""),
+		TurnstileSecret:  getEnv("TURNSTILE_SECRET", ""),
+		TurnstileSiteKey: getEnv("TURNSTILE_SITE_KEY", ""),
 	}
 
 	// Load system prompt from file

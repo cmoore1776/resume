@@ -63,13 +63,15 @@ type ChatHandler struct {
 	apiKey       string
 	model        string
 	systemPrompt string
+	authHandler  *AuthHandler
 }
 
-func NewChatHandler(apiKey, model, systemPrompt string) *ChatHandler {
+func NewChatHandler(apiKey, model, systemPrompt string, authHandler *AuthHandler) *ChatHandler {
 	return &ChatHandler{
 		apiKey:       apiKey,
 		model:        model,
 		systemPrompt: systemPrompt,
+		authHandler:  authHandler,
 	}
 }
 
@@ -88,6 +90,31 @@ type ServerMessage struct {
 }
 
 func (h *ChatHandler) HandleWebSocket(c *gin.Context) {
+	// Verify JWT token from Authorization header or Sec-WebSocket-Protocol
+	var tokenString string
+
+	// Try Authorization header first
+	authHeader := c.GetHeader("Authorization")
+	if authHeader != "" && len(authHeader) > 7 && authHeader[:7] == "Bearer " {
+		tokenString = authHeader[7:]
+	} else {
+		// Fall back to Sec-WebSocket-Protocol for WebSocket auth
+		tokenString = c.GetHeader("Sec-WebSocket-Protocol")
+	}
+
+	// Verify JWT token
+	if h.authHandler != nil {
+		_, err := h.authHandler.VerifyJWT(tokenString)
+		if err != nil {
+			log.Printf("JWT verification failed for IP %s: %v", c.ClientIP(), err)
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": "Authentication required",
+			})
+			return
+		}
+		log.Printf("JWT verified for IP %s", c.ClientIP())
+	}
+
 	// Get client IP (respects X-Forwarded-For from trusted proxies)
 	clientIP := c.ClientIP()
 

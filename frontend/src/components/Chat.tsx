@@ -9,6 +9,19 @@ interface ChatProps {
   onSpeakingChange: (isSpeaking: boolean) => void;
 }
 
+// Declare turnstile on window for TypeScript
+declare global {
+  interface Window {
+    onTurnstileSuccess?: (token: string) => void;
+    turnstile?: {
+      render: (element: string | HTMLElement, options: {
+        sitekey: string;
+        callback: string;
+      }) => void;
+    };
+  }
+}
+
 export default function Chat({ onSpeakingChange }: ChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -16,11 +29,19 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentAssistantMessage, setCurrentAssistantMessage] = useState('');
 
+  // Authentication state
+  const [jwtToken, setJwtToken] = useState<string | null>(null);
+  const [turnstileSiteKey, setTurnstileSiteKey] = useState<string>('');
+  const [isVerified, setIsVerified] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+
   const wsRef = useRef<WebSocket | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioBuffersRef = useRef<Float32Array[]>([]);
   const isPlayingAudioRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const turnstileRendered = useRef(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -29,6 +50,74 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
   useEffect(() => {
     scrollToBottom();
   }, [messages, currentAssistantMessage]);
+
+  // Fetch Turnstile site key on mount
+  useEffect(() => {
+    const apiUrl = import.meta.env.VITE_API_URL || 'https://resume.k3s.christianmoore.me';
+
+    fetch(`${apiUrl}/api/turnstile-sitekey`)
+      .then(res => res.json())
+      .then(data => {
+        setTurnstileSiteKey(data.siteKey);
+      })
+      .catch(err => {
+        console.error('Failed to fetch Turnstile site key:', err);
+        setAuthError('Failed to load authentication. Please refresh the page.');
+      });
+  }, []);
+
+  // Turnstile success callback
+  const handleTurnstileSuccess = useCallback(async (token: string) => {
+    setIsVerifying(true);
+    setAuthError(null);
+
+    const apiUrl = import.meta.env.VITE_API_URL || 'https://resume.k3s.christianmoore.me';
+
+    try {
+      const response = await fetch(`${apiUrl}/api/verify-turnstile`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token })
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.jwt) {
+        setJwtToken(data.jwt);
+        localStorage.setItem('jwt_token', data.jwt);
+        setIsVerified(true);
+      } else {
+        setAuthError(data.error || 'Verification failed. Please try again.');
+      }
+    } catch (err) {
+      console.error('Turnstile verification error:', err);
+      setAuthError('Verification failed. Please refresh and try again.');
+    } finally {
+      setIsVerifying(false);
+    }
+  }, []);
+
+  // Setup global Turnstile callback
+  useEffect(() => {
+    window.onTurnstileSuccess = handleTurnstileSuccess;
+    return () => {
+      delete window.onTurnstileSuccess;
+    };
+  }, [handleTurnstileSuccess]);
+
+  // Render Turnstile widget when site key is available
+  useEffect(() => {
+    if (turnstileSiteKey && !isVerified && !turnstileRendered.current && window.turnstile) {
+      const element = document.getElementById('turnstile-widget');
+      if (element) {
+        window.turnstile.render(element, {
+          sitekey: turnstileSiteKey,
+          callback: 'onTurnstileSuccess',
+        });
+        turnstileRendered.current = true;
+      }
+    }
+  }, [turnstileSiteKey, isVerified]);
 
   const playAudioBuffers = useCallback(async () => {
     if (isPlayingAudioRef.current) return;
@@ -77,10 +166,15 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
     }
   }, [onSpeakingChange]);
 
-  // Initialize WebSocket connection
+  // Initialize WebSocket connection (only when authenticated)
   useEffect(() => {
+    // Don't connect until we have a JWT token
+    if (!jwtToken) return;
+
     const wsUrl = import.meta.env.VITE_WS_URL || 'wss://resume.k3s.christianmoore.me/ws/chat';
-    const ws = new WebSocket(wsUrl);
+
+    // Send JWT token via Sec-WebSocket-Protocol header (WebSocket auth method)
+    const ws = new WebSocket(wsUrl, ['access_token', jwtToken]);
 
     ws.onopen = () => {
       // WebSocket connection established
@@ -188,8 +282,7 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
     return () => {
       ws.close();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Only run once on mount
+  }, [jwtToken]); // Reconnect when JWT token changes
 
   const stopAudio = () => {
     // Clear audio buffers
@@ -231,13 +324,55 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
 
   return (
     <div className="chat-container">
-      <div className="messages">
-        {messages.length === 0 && !currentAssistantMessage && (
-          <div className="welcome-message">
-            <h2>Hi! I'm Christian's AI persona</h2>
-            <p>Ask me about my professional experience!</p>
-          </div>
-        )}
+      {/* Show Turnstile widget if not verified */}
+      {!isVerified && (
+        <div className="auth-container" style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '400px',
+          padding: '2rem'
+        }}>
+          <h2>Welcome! Verify to continue</h2>
+          <p style={{ marginBottom: '1.5rem', color: '#666' }}>
+            Please complete the verification to chat with Christian's AI persona
+          </p>
+
+          {authError && (
+            <div style={{
+              color: '#d32f2f',
+              backgroundColor: '#ffebee',
+              padding: '0.75rem 1rem',
+              borderRadius: '4px',
+              marginBottom: '1rem',
+              maxWidth: '400px'
+            }}>
+              {authError}
+            </div>
+          )}
+
+          {isVerifying && (
+            <div style={{ marginBottom: '1rem', color: '#666' }}>
+              Verifying...
+            </div>
+          )}
+
+          {/* Turnstile widget placeholder */}
+          <div id="turnstile-widget"></div>
+        </div>
+      )}
+
+      {/* Show chat interface if verified */}
+      {isVerified && (
+        <>
+          <div className="messages">
+            {messages.length === 0 && !currentAssistantMessage && (
+              <div className="welcome-message">
+                <h2>Hi! I'm Christian's AI persona</h2>
+                <p>Ask me about my professional experience!</p>
+              </div>
+            )}
         {messages.map((message, index) => (
           <div key={index} className={`message ${message.role}`}>
             <div className="message-content">{message.content}</div>
@@ -260,28 +395,30 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
         <div ref={messagesEndRef} />
       </div>
 
-      <form onSubmit={handleSubmit} className="input-form">
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask me anything..."
-          disabled={isLoading}
-          className="message-input"
-        />
-        {isPlaying && (
-          <button type="button" onClick={stopAudio} className="stop-button">
-            Stop
-          </button>
-        )}
-        <button
-          type="submit"
-          disabled={isLoading || !input.trim() || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN}
-          className="send-button"
-        >
-          Send
-        </button>
-      </form>
+          <form onSubmit={handleSubmit} className="input-form">
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Ask me anything..."
+              disabled={isLoading}
+              className="message-input"
+            />
+            {isPlaying && (
+              <button type="button" onClick={stopAudio} className="stop-button">
+                Stop
+              </button>
+            )}
+            <button
+              type="submit"
+              disabled={isLoading || !input.trim() || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN}
+              className="send-button"
+            >
+              Send
+            </button>
+          </form>
+        </>
+      )}
     </div>
   );
 }

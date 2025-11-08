@@ -4,7 +4,7 @@
 backend:
   image:
     repository: registry.k3s.local.christianmoore.me:8443/resume/backend
-    tag: "v1.0.11"
+    tag: "v1.0.12"
     pullPolicy: IfNotPresent
 
   replicaCount: 1
@@ -57,7 +57,7 @@ backend:
 frontend:
   image:
     repository: registry.k3s.local.christianmoore.me:8443/resume/frontend
-    tag: "v1.0.11"
+    tag: "v1.0.12"
     pullPolicy: IfNotPresent
 
   replicaCount: 1
@@ -160,9 +160,20 @@ rateLimit:
 secrets:
   # Use SealedSecret (recommended for GitOps)
   useSealed: false
-  # OpenAI API key - must be set externally
+  # Required secrets - must be set externally
+  # The secret must contain the following keys:
+  #   - openai-api-key: OpenAI API key (e.g., sk-...)
+  #   - jwt-secret: Secret for signing JWT tokens (random string, e.g., generate with: openssl rand -base64 32)
+  #   - turnstile-secret: Cloudflare Turnstile secret key (from Cloudflare dashboard)
+  #   - turnstile-site-key: Cloudflare Turnstile site key (from Cloudflare dashboard)
+  #
   # Option 1 - Manual secret:
-  #   kubectl create secret generic resume-secrets --from-literal=openai-api-key=sk-...
+  #   kubectl create secret generic resume-secrets \
+  #     --from-literal=openai-api-key=sk-... \
+  #     --from-literal=jwt-secret=$(openssl rand -base64 32) \
+  #     --from-literal=turnstile-secret=0x... \
+  #     --from-literal=turnstile-site-key=0x...
+  #
   # Option 2 - SealedSecret (recommended):
   #   See chart/templates/sealedsecret.yaml.example
   existingSecret: resume-secrets
