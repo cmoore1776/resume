@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import * as Slider from '@radix-ui/react-slider';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -27,7 +28,7 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
   const isPlayingAudioRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const volumeControlRef = useRef<HTMLDivElement>(null);
-  const sliderRef = useRef<HTMLDivElement>(null);
+  const volumeRef = useRef(0.8); // Ref to track current volume for audio playback
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -36,19 +37,6 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
   useEffect(() => {
     scrollToBottom();
   }, [messages, currentAssistantMessage]);
-
-  // Handle volume slider dragging
-  const handleVolumeChange = useCallback((clientY: number) => {
-    if (!sliderRef.current) return;
-
-    const rect = sliderRef.current.getBoundingClientRect();
-    const sliderHeight = rect.height;
-    const clickY = clientY - rect.top;
-
-    // Invert the Y axis (top = 100%, bottom = 0%)
-    const newVolume = Math.max(0, Math.min(1, 1 - (clickY / sliderHeight)));
-    setVolume(newVolume);
-  }, []);
 
   // Close volume slider when clicking outside
   useEffect(() => {
@@ -66,37 +54,6 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [showVolumeSlider]);
-
-  // Handle mouse/touch events for custom slider
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!showVolumeSlider) return;
-      handleVolumeChange(e.clientY);
-    };
-
-    const handleTouchMove = (e: TouchEvent) => {
-      if (!showVolumeSlider || e.touches.length === 0) return;
-      e.preventDefault();
-      handleVolumeChange(e.touches[0].clientY);
-    };
-
-    const handleMouseUp = () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-
-    if (showVolumeSlider && sliderRef.current) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('touchmove', handleTouchMove, { passive: false });
-      document.addEventListener('mouseup', handleMouseUp);
-    }
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('touchmove', handleTouchMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [showVolumeSlider, handleVolumeChange]);
 
   // Automatically fetch JWT token on mount
   useEffect(() => {
@@ -164,8 +121,8 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
         source.connect(gainNode);
         gainNode.connect(audioContext.destination);
 
-        // Set volume from slider (0.0 to 1.0)
-        gainNode.gain.value = volume;
+        // Set volume from ref (0.0 to 1.0)
+        gainNode.gain.value = volumeRef.current;
 
         await new Promise<void>((resolve) => {
           source.onended = () => resolve();
@@ -180,7 +137,7 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
         onSpeakingChange(false);
       }
     }
-  }, [onSpeakingChange, volume]);
+  }, [onSpeakingChange]);
 
   // Initialize WebSocket connection (only when authenticated)
   useEffect(() => {
@@ -416,22 +373,23 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
               {showVolumeSlider && (
                 <div className="volume-slider-container">
                   <div className="volume-label">{Math.round(volume * 100)}%</div>
-                  <div
-                    className="volume-slider-track"
-                    ref={sliderRef}
-                    onMouseDown={(e) => handleVolumeChange(e.clientY)}
-                    onTouchStart={(e) => {
-                      if (e.touches.length > 0) {
-                        handleVolumeChange(e.touches[0].clientY);
-                      }
+                  <Slider.Root
+                    className="volume-slider"
+                    value={[volume * 100]}
+                    onValueChange={(values) => {
+                      const newVolume = values[0] / 100;
+                      setVolume(newVolume);
+                      volumeRef.current = newVolume;
                     }}
+                    max={100}
+                    step={1}
+                    orientation="vertical"
                   >
-                    <div className="volume-slider-fill" style={{ height: `${volume * 100}%` }} />
-                    <div
-                      className="volume-slider-thumb"
-                      style={{ bottom: `calc(${volume * 100}% - 8px)` }}
-                    />
-                  </div>
+                    <Slider.Track className="volume-slider-track">
+                      <Slider.Range className="volume-slider-range" />
+                    </Slider.Track>
+                    <Slider.Thumb className="volume-slider-thumb" />
+                  </Slider.Root>
                 </div>
               )}
               <button

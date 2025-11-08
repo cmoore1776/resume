@@ -426,42 +426,62 @@ body {
   z-index: 1000;
 }
 
-.volume-slider-track {
+/* Radix UI Slider - Vertical Volume Control */
+.volume-slider {
   position: relative;
+  display: flex;
+  align-items: center;
+  user-select: none;
+  touch-action: none;
   width: 0.5rem;
   height: 6rem;
-  background: #3a3a3a;
-  border-radius: 0.25rem;
-  cursor: pointer;
 }
 
-.volume-slider-fill {
-  position: absolute;
-  bottom: 0;
-  left: 0;
+.volume-slider[data-orientation='vertical'] {
+  flex-direction: column;
+  width: 0.5rem;
+  height: 6rem;
+}
+
+.volume-slider-track {
+  position: relative;
+  flex-grow: 1;
+  background: #3a3a3a;
+  border-radius: 0.25rem;
   width: 100%;
+}
+
+.volume-slider[data-orientation='vertical'] .volume-slider-track {
+  width: 0.5rem;
+  height: 100%;
+}
+
+.volume-slider-range {
+  position: absolute;
   background: #4a9eff;
   border-radius: 0.25rem;
-  pointer-events: none;
-  transition: height 0.1s ease;
+  width: 100%;
+  height: 100%;
 }
 
 .volume-slider-thumb {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
+  display: block;
   width: 1rem;
   height: 1rem;
   background: #4a9eff;
   border-radius: 50%;
   cursor: pointer;
   transition: all 0.2s ease;
-  pointer-events: none;
 }
 
 .volume-slider-thumb:hover {
   background: #6bb4ff;
-  transform: translateX(-50%) scale(1.1);
+  transform: scale(1.1);
+}
+
+.volume-slider-thumb:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(74, 158, 255, 0.3);
 }
 
 .volume-label {
