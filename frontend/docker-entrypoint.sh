@@ -10,13 +10,13 @@ echo "  VITE_WS_URL: $VITE_WS_URL"
 echo "  VITE_API_URL: $VITE_API_URL"
 
 # Find all JavaScript files in the nginx html directory and replace placeholders
-find /usr/share/nginx/html -type f -name '*.js' -exec sed -i \
+find /etc/nginx/html -type f -name '*.js' -exec sed -i \
   -e "s|__VITE_WS_URL__|$VITE_WS_URL|g" \
   -e "s|__VITE_API_URL__|$VITE_API_URL|g" \
   {} +
 
 # Also check index.html for any embedded scripts
-find /usr/share/nginx/html -type f -name 'index.html' -exec sed -i \
+find /etc/nginx/html -type f -name 'index.html' -exec sed -i \
   -e "s|__VITE_WS_URL__|$VITE_WS_URL|g" \
   -e "s|__VITE_API_URL__|$VITE_API_URL|g" \
   {} +

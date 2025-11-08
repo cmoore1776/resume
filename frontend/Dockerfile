@@ -17,24 +17,24 @@ ARG VITE_API_URL=__VITE_API_URL__
 RUN npm run build
 
 # Runtime stage - serve with nginx
-FROM nginx:alpine
+FROM cmooreio/nginx:latest
 
-# Install envsubst (gettext package)
+# Temporarily switch to root to install packages and set permissions
+USER root
 RUN apk add --no-cache gettext
 
 # Copy built assets from builder
-COPY --from=builder /app/dist /usr/share/nginx/html
+COPY --from=builder /app/dist /etc/nginx/html
 
 # Copy nginx configuration
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Copy env substitution script
+# Copy env substitution script and make executable
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
-# Change ownership of nginx html directory to allow non-root user to modify files
-RUN chown -R 1000:1000 /usr/share/nginx/html && \
-    chmod -R 755 /usr/share/nginx/html
+# Switch back to nginx user
+USER 101
 
 EXPOSE 80
 
