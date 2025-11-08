@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: resume-backend-test:latest
+    container_name: resume-backend-local
+    ports:
+      - "8080:8080"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-your-api-key-here}
+      - OPENAI_MODEL=gpt-4o-realtime-preview-2024-12-17
+      - PORT=8080
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - resume-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: resume-frontend-test:latest
+    container_name: resume-frontend-local
+    ports:
+      - "3000:80"
+    environment:
+      - VITE_WS_URL=ws://localhost:8080/ws/chat
+      - VITE_API_URL=http://localhost:8080
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - resume-network
+
+networks:
+  resume-network:
+    driver: bridge

@@ -26,7 +26,7 @@ func main() {
 
 	// Configure CORS
 	router.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:5173", "https://christianmoore.me"},
+		AllowOrigins:     []string{"http://localhost:5173", "http://localhost:3000", "https://christianmoore.me", "https://resume.k3s.christianmoore.me"},
 		AllowMethods:     []string{"GET", "POST", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Upgrade", "Connection"},
 		ExposeHeaders:    []string{"Content-Length"},
