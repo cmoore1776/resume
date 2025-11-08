@@ -32,6 +32,10 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
+# Change ownership of nginx html directory to allow non-root user to modify files
+RUN chown -R 1000:1000 /usr/share/nginx/html && \
+    chmod -R 755 /usr/share/nginx/html
+
 EXPOSE 80
 
 ENTRYPOINT ["/docker-entrypoint.sh"]

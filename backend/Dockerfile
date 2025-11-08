@@ -22,12 +22,16 @@ WORKDIR /root/
 
 # Copy the binary from builder
 COPY --from=builder /app/main .
+RUN chmod +x ./main
 
 # Copy system prompt (can be overridden by volume mount)
 COPY system_prompt.txt .
 
 # Create directory for audio cache
-RUN mkdir -p audio_cache
+RUN mkdir -p audio_cache && chmod -R 777 audio_cache
+
+# Change ownership to non-root user
+RUN chown -R 1000:1000 /root
 
 EXPOSE 8080
 
