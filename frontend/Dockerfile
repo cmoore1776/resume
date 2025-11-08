@@ -33,6 +33,9 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
+# Set ownership of nginx html directory to nginx user for runtime env substitution
+RUN chown -R 101:101 /etc/nginx/html
+
 # Switch back to nginx user
 USER 101
 
