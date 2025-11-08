@@ -29,16 +29,8 @@ spec:
             secretKeyRef:
               name: avatar-secrets
               key: openai-api-key
-        - name: ELEVENLABS_API_KEY
-          valueFrom:
-            secretKeyRef:
-              name: avatar-secrets
-              key: elevenlabs-api-key
-        - name: ELEVENLABS_VOICE_ID
-          valueFrom:
-            secretKeyRef:
-              name: avatar-secrets
-              key: elevenlabs-voice-id
+        - name: OPENAI_MODEL
+          value: "gpt-4o-realtime-preview-2024-12-17"
         resources:
           requests:
             memory: "128Mi"
