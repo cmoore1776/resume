@@ -24,6 +24,10 @@ func main() {
 	// Setup Gin router
 	router := gin.Default()
 
+	// Configure trusted proxies (Kubernetes service mesh)
+	// Trust k3s default pod (10.42.0.0/16) and service (10.43.0.0/16) CIDRs
+	router.SetTrustedProxies([]string{"10.42.0.0/16", "10.43.0.0/16"})
+
 	// Configure CORS
 	router.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"http://localhost:5173", "http://localhost:3000", "https://christianmoore.me", "https://resume.k3s.christianmoore.me"},
