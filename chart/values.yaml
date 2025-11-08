@@ -141,16 +141,18 @@ rateLimit:
   enabled: true
   # Backend API rate limits (applies to /ws/, /api/, /health endpoints)
   backend:
-    # Average requests per second
-    average: 10
-    # Maximum burst size
-    burst: 20
+    # Average requests per second (human chat: 1 WebSocket connection + occasional refreshes)
+    average: 2
+    # Maximum burst size (allows page refreshes and retries)
+    burst: 5
     # Period for rate calculation
     period: 1m
-  # Frontend rate limits (lighter, mostly static content)
+  # Frontend rate limits (static assets: HTML, CSS, JS, fonts)
   frontend:
-    average: 50
-    burst: 100
+    # Average requests per second (initial page load ~5-10 assets)
+    average: 20
+    # Maximum burst size (allows quick successive asset loads)
+    burst: 40
     period: 1m
 
 # Secrets - populated from external secret or manually created
