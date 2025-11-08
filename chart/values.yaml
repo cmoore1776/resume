@@ -250,11 +250,10 @@ securityContext:
     type: RuntimeDefault
 
 # Deployment strategy
+# Note: Backend uses Recreate because it mounts a ReadWriteOnce PVC
+# which can only be attached to one pod at a time
 strategy:
-  type: RollingUpdate
-  rollingUpdate:
-    maxSurge: 1
-    maxUnavailable: 0
+  type: Recreate
 
 # Node selector
 nodeSelector: {}
