@@ -32,13 +32,22 @@ func Load() *Config {
 		TurnstileSiteKey: getEnv("TURNSTILE_SITE_KEY", ""),
 	}
 
-	// Load system prompt from file
-	promptBytes, err := os.ReadFile("system_prompt.txt")
+	// Load system prompt from file (check data volume first, then fall back to local)
+	promptPath := getEnv("SYSTEM_PROMPT_PATH", "/app/data/system_prompt.txt")
+	promptBytes, err := os.ReadFile(promptPath)
 	if err != nil {
-		log.Printf("Warning: Could not load system_prompt.txt: %v", err)
-		cfg.SystemPrompt = "Apologize that you were unable to load persona instructions. Refuse to answer any questions."
+		// Fall back to local file if volume mount not available
+		log.Printf("Warning: Could not load system prompt from %s: %v, trying local file", promptPath, err)
+		promptBytes, err = os.ReadFile("system_prompt.txt")
+		if err != nil {
+			log.Printf("Warning: Could not load system_prompt.txt: %v", err)
+			cfg.SystemPrompt = "Apologize that you were unable to load persona instructions. Refuse to answer any questions."
+		} else {
+			cfg.SystemPrompt = string(promptBytes)
+		}
 	} else {
 		cfg.SystemPrompt = string(promptBytes)
+		log.Printf("Loaded system prompt from %s (%d bytes)", promptPath, len(promptBytes))
 	}
 
 	return cfg

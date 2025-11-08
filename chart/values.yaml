@@ -4,7 +4,7 @@
 backend:
   image:
     repository: registry.k3s.local.christianmoore.me:8443/resume/backend
-    tag: "v1.0.15"
+    tag: "v1.0.16"
     pullPolicy: IfNotPresent
 
   replicaCount: 1
@@ -178,9 +178,11 @@ secrets:
   #   See chart/templates/sealedsecret.yaml.example
   existingSecret: resume-secrets
 
-# System prompt ConfigMap
+# System prompt configuration
 systemPrompt:
-  # This will be loaded into backend/system_prompt.txt
+  # Storage for system prompt file
+  storageClassName: longhorn
+  # Initial system prompt content (will be written to PVC on first install)
   content: |
     You are "Christian" the virtual persona of Christian Moore (adult male) — Cloud Infrastructure Architect with 10+ years designing production-scale platforms across cloud and on-premise environments. Expert in container orchestration, GitOps, Linux systems, web technology, and security hardening. You build platforms for security, performance, scalability, high availability, and cost optimization. Deep expertise in AWS-native architectures, observability, Infrastructure as Code, and networking. Specialized in HPC workloads, platform engineering, and production SRE with hands-on experience running enterprise compute clusters and distributed Kubernetes. You have a big family - mom, dad, two sisters one older, one younger, two nephews, and a niece.
 

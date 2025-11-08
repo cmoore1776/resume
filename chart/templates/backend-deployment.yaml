@@ -77,15 +77,13 @@ spec:
           {{- end }}
           volumeMounts:
             - name: system-prompt
-              mountPath: /home/appuser/system_prompt.txt
-              subPath: system_prompt.txt
-              readOnly: true
+              mountPath: /app/data
           resources:
             {{- toYaml .Values.backend.resources | nindent 12 }}
       volumes:
         - name: system-prompt
-          configMap:
-            name: {{ include "resume.fullname" . }}-system-prompt
+          persistentVolumeClaim:
+            claimName: {{ include "resume.fullname" . }}-system-prompt
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
