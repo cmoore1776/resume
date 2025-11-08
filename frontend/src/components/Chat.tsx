@@ -354,7 +354,7 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
               className="mute-button"
               title={isMuted ? "Unmute" : "Mute"}
             >
-              {isMuted ? '🔇' : '🔊'}
+              <i className={`fas fa-fw ${isMuted ? 'fa-volume-xmark' : 'fa-volume-high'}`}></i>
             </button>
             <button
               type="submit"

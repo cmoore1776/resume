@@ -380,18 +380,20 @@ body {
 }
 
 .mute-button {
-  padding: 0.75rem;
-  min-width: 3rem;
+  padding: 0;
+  width: 3rem;
+  height: 3rem;
   background: #2a2a2a;
   border: 1px solid #3a3a3a;
   border-radius: 0.5rem;
   color: #ffffff;
-  font-size: 1.25rem;
+  font-size: 1.1rem;
   cursor: pointer;
   transition: all 0.3s ease;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 
 .mute-button:hover {
