@@ -17,19 +17,39 @@ Browser → ws://backend:8080/ws/chat → OpenAI Realtime API
 ```
 
 **Key Files**:
-- `backend/handlers/chat.go` - WebSocket handler, OpenAI proxy
-- `backend/main.go:29` - CORS middleware
-- `backend/handlers/chat.go:15-22` - WebSocket CheckOrigin
+- `backend/handlers/chat.go` - WebSocket handler, OpenAI proxy, rate limiting
+- `backend/handlers/auth.go` - JWT authentication, Cloudflare Turnstile verification
+- `backend/config/config.go` - Environment configuration, system prompt loading
+- `backend/main.go` - CORS middleware, route definitions, trusted proxies
 - `frontend/src/components/Chat.tsx` - WebSocket client, audio playback
 - `frontend/docker-entrypoint.sh` - Runtime env var injection via sed
-- `chart/values.yaml` - Helm config, system prompt (lines 152-193)
+- `chart/values.yaml` - Helm config (backend/frontend settings, systemPrompt section)
 
 ## Non-Obvious Implementation Details
 
+### Authentication & Security
+
+**JWT + Cloudflare Turnstile Protection**:
+- WebSocket connections require valid JWT token
+- JWT tokens obtained via `/api/verify-turnstile` (bot protection) or `/api/token` (rate-limited)
+- Tokens passed via `Authorization: Bearer <token>` header or `Sec-WebSocket-Protocol` header
+- 30-minute token expiration
+- Development mode: if JWT_SECRET/TURNSTILE_SECRET not set, auth bypassed with warnings
+
+**Rate Limiting (Backend)**:
+- Per-connection: 1 message per 5 seconds, burst of 3
+- Per-IP: 10 concurrent WebSocket connections max
+- Message length: 1-4000 characters
+- Input sanitization: control character removal
+
+**Traefik Middleware Rate Limits**:
+- Backend API: 2 req/sec average, 5 burst
+- Frontend static assets: 20 req/sec average, 40 burst
+
 ### Backend CORS Requires Two Locations
 Both must allow same origins or WebSocket upgrade fails with 403:
-1. `backend/main.go:29` - HTTP CORS middleware
-2. `backend/handlers/chat.go:15-22` - WebSocket CheckOrigin function
+1. `backend/main.go` - HTTP CORS middleware (cors.New configuration)
+2. `backend/handlers/chat.go` - WebSocket upgrader CheckOrigin function
 
 Current allowed origins:
 - `http://localhost:5173` (Vite dev)
@@ -48,23 +68,59 @@ Frontend uses **runtime** env injection (not build-time):
 **Frontend**: UID 101 (nginx user in `cmooreio/nginx:latest`)
 
 Frontend deployment MUST use UID 101 or sed fails with permission denied:
-- `chart/values.yaml:106-122` - Frontend-specific podSecurityContext
-- `chart/templates/frontend-deployment.yaml:28` - Uses `frontend.podSecurityContext`
+- `chart/values.yaml` - Frontend-specific `podSecurityContext` (runAsUser: 101)
+- `chart/templates/frontend-deployment.yaml` - Uses `frontend.podSecurityContext`
 
 ### Audio Format
-**CRITICAL**: We do NOT set the `Format` field in `SessionAudioOutput` (chat.go:86-88). This prevents audio distortion/static issues with GPT Realtime API. OpenAI uses default format when unspecified.
+**CRITICAL**: We do NOT set the `Format` field in `SessionAudioOutput`. This prevents audio distortion/static issues with GPT Realtime API. OpenAI uses default format when unspecified.
+
+```go
+// Backend (chat.go) - Configure session with voice ONLY (no format specified)
+Audio: &openairt.RealtimeSessionAudio{
+    Output: &openairt.SessionAudioOutput{
+        Voice: openairt.VoiceCedar, // Masculine voice, no Format field
+    },
+},
+```
 
 ```typescript
-// chat.go:87 - Backend configures voice ONLY (no format specified)
-Voice: openairt.VoiceCedar
-
-// Chat.tsx - Frontend decodes base64 → PCM16 → Float32
+// Frontend (Chat.tsx) - Decode base64 → PCM16 → Float32
 // OpenAI sends PCM16 24kHz by default
 const view = new DataView(binary.buffer);
 const float32 = new Float32Array(binary.length / 2);
 for (let i = 0; i < float32.length; i++) {
   float32[i] = view.getInt16(i * 2, true) / 32768.0;
 }
+```
+
+## Code Quality & Pre-commit Hooks
+
+The project uses pre-commit hooks for automated code quality checks. Install and enable:
+
+```bash
+pip install pre-commit
+pre-commit install
+```
+
+**Hooks automatically run on commit**:
+- Go formatting (`go fmt`, `go imports`)
+- Go linting (`go vet`)
+- Go module tidying (`go mod tidy`)
+- Dockerfile linting (`hadolint`)
+- YAML validation (`yamllint`, skips Helm templates)
+- Markdown formatting (`markdownlint`)
+- Shell script linting (`shellcheck`)
+- Secrets detection (`detect-secrets`)
+- General file checks (trailing whitespace, EOF, merge conflicts)
+
+**Skip hooks** (not recommended):
+```bash
+git commit --no-verify -m "Message"
+```
+
+**Frontend linting** (separate from pre-commit):
+```bash
+cd frontend && npm run lint
 ```
 
 ## Local Development
@@ -116,13 +172,15 @@ kubectl patch application resume -n argocd --type merge \
 ## Common Issues
 
 ### WebSocket 403 Forbidden
-**Cause**: Origin not in CORS/CheckOrigin lists
-**Fix**: Add to both `main.go:29` AND `chat.go:15-22`
+**Cause**: Origin not in CORS/CheckOrigin lists, or missing/invalid JWT token
+**Fix**:
+- Add origin to both `main.go` (CORS middleware) AND `chat.go` (CheckOrigin function)
+- Verify JWT token is being sent in Authorization header or Sec-WebSocket-Protocol
 
 ### Frontend CrashLoopBackOff - Permission Denied
 **Cause**: Security context not UID 101
 **Symptoms**: `sed: can't create temp file ... Permission denied`
-**Fix**: Verify `chart/values.yaml:106-112` uses runAsUser: 101
+**Fix**: Verify `chart/values.yaml` frontend.podSecurityContext uses runAsUser: 101
 
 ### Images Not Updating After Push
 **Cause**: ArgoCD synced but still old revision
@@ -137,8 +195,12 @@ kubectl patch application resume -n argocd --type merge \
 
 ### Backend (from k8s Secret)
 - `OPENAI_API_KEY` - Required, from resume-secrets
-- `OPENAI_MODEL` - Default: `gpt-4o-realtime-preview-2024-12-17`
+- `JWT_SECRET` - Required for production, JWT token signing (32+ byte random string)
+- `TURNSTILE_SECRET` - Cloudflare Turnstile secret key (optional, enables bot protection)
+- `TURNSTILE_SITE_KEY` - Cloudflare Turnstile site key (optional)
+- `OPENAI_MODEL` - Default: `gpt-realtime-mini` (production: `gpt-4o-realtime-preview-2024-12-17`)
 - `PORT` - Default: 8080
+- `SYSTEM_PROMPT_PATH` - Default: `/app/data/system_prompt.txt` (falls back to local file)
 
 ### Frontend (injected at runtime)
 - `VITE_WS_URL` - Replaced by docker-entrypoint.sh
@@ -147,13 +209,18 @@ kubectl patch application resume -n argocd --type merge \
 ## Key Customizations
 
 ### Update AI Behavior
-Edit `chart/values.yaml:152-193` (systemPrompt.content), commit, push
+Edit `chart/values.yaml` systemPrompt.content section, commit, push (ArgoCD auto-deploys)
 
 ### Update Resume
 Edit `frontend/src/components/Resume.tsx`, rebuild frontend image
 
 ### Change Voice
-Edit `backend/handlers/chat.go:87` (VoiceCedar → VoiceEcho/Alloy/etc), rebuild backend
+Edit `backend/handlers/chat.go` SessionAudioOutput.Voice (VoiceCedar → VoiceEcho/Alloy/etc), rebuild backend
+
+### Update Authentication
+- Generate new JWT secret: `openssl rand -base64 32`
+- Update Kubernetes secret with new `jwt-secret` key
+- Restart backend pods to pick up new secret
 
 ## Registry Configuration
 
@@ -182,37 +249,54 @@ kubectl get pod -n resume -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.
 
 ## Critical Gotchas
 
-1. **DO NOT set audio Format field** - Leave unset in SessionAudioOutput to avoid distortion/static (chat.go:86-88)
-2. **No hot reload in containers** - Must rebuild and redeploy for code changes
-3. **System prompt lives in two places** - values.yaml (k8s) and system_prompt.txt (local dev)
-4. **Frontend needs write access** - UID 101 required for sed in entrypoint
-5. **CORS in two places** - Both main.go and chat.go must match
-6. **ArgoCD auto-sync** - Commits to main branch auto-deploy (prune + self-heal enabled)
-7. **No reconnection logic** - User must refresh if WebSocket drops
-8. **Audio requires interaction** - Browser autoplay policy requires user click first
+1. **DO NOT set audio Format field** - Leave unset in SessionAudioOutput to avoid distortion/static
+2. **Authentication required** - WebSocket needs JWT token (dev mode bypasses if JWT_SECRET not set)
+3. **No hot reload in containers** - Must rebuild and redeploy for code changes
+4. **System prompt lives in three places** - values.yaml ConfigMap (k8s), system_prompt.txt (local dev), config.go fallback
+5. **Frontend needs write access** - UID 101 required for sed in entrypoint
+6. **CORS in two places** - Both main.go and chat.go must match origins
+7. **ArgoCD auto-sync** - Commits to main branch auto-deploy (prune + self-heal enabled)
+8. **No reconnection logic** - User must refresh if WebSocket drops
+9. **Audio requires interaction** - Browser autoplay policy requires user click first
+10. **StatefulSet not Deployment** - Backend uses StatefulSet for ConfigMap volume mount
 
 ## Project Structure
 
 ```
 backend/
-  ├── handlers/chat.go      # OpenAI integration (line 87: voice config)
-  ├── main.go               # CORS (line 29), routes
-  └── Dockerfile            # Multi-stage, Go 1.23-alpine
+  ├── handlers/
+  │   ├── auth.go           # JWT & Cloudflare Turnstile authentication
+  │   └── chat.go           # WebSocket handler, OpenAI proxy, rate limiting
+  ├── config/config.go      # Environment config, system prompt loading
+  ├── main.go               # CORS middleware, routes, trusted proxies
+  ├── system_prompt.txt     # Local dev system prompt
+  └── Dockerfile            # Multi-stage build, Go 1.23-alpine
 
 frontend/
-  ├── src/components/Chat.tsx    # WebSocket client, audio decode
-  ├── docker-entrypoint.sh       # Runtime sed replacement
-  ├── nginx.conf                 # Root: /etc/nginx/html
-  └── Dockerfile                 # Custom nginx base (UID 101)
+  ├── src/
+  │   ├── components/
+  │   │   ├── Chat.tsx      # WebSocket client, JWT auth, audio playback
+  │   │   └── Resume.tsx    # Resume content/layout
+  │   └── App.tsx           # Main application layout
+  ├── docker-entrypoint.sh  # Runtime env var injection via sed
+  ├── nginx.conf            # Nginx config (root: /etc/nginx/html)
+  └── Dockerfile            # Custom nginx base (UID 101)
 
 chart/
-  ├── values.yaml                # Lines 106-122: frontend securityContext
-  │                              # Lines 152-193: systemPrompt
+  ├── values.yaml           # Configuration:
+  │                         #   - frontend.podSecurityContext (UID 101)
+  │                         #   - systemPrompt.content
+  │                         #   - rateLimit settings
+  │                         #   - secrets configuration
   └── templates/
-      ├── frontend-deployment.yaml   # Line 28: frontend.podSecurityContext
-      └── backend-deployment.yaml    # Line 29: backend.podSecurityContext
+      ├── frontend-deployment.yaml    # Frontend Deployment
+      ├── backend-statefulset.yaml    # Backend StatefulSet (ConfigMap mount)
+      ├── configmap.yaml              # System prompt ConfigMap
+      ├── ingressroute.yaml           # Traefik IngressRoute
+      ├── middleware.yaml             # Traefik rate limiting
+      └── sealedsecret.yaml.example   # SealedSecret template
 
-argocd/resume.yaml         # Auto-sync: true, prune: true
-docker-compose.yaml        # Local dev environment
-Makefile                   # docker-build-push automation
+argocd/resume.yaml         # ArgoCD Application (auto-sync: true)
+docker-compose.yaml        # Local development environment
+Makefile                   # Build/deploy automation
 ```

@@ -81,6 +81,7 @@ This application combines a traditional resume display with an AI-powered chat i
 - **Node.js**: 20+ ([Download](https://nodejs.org/))
 - **Docker**: For containerized deployment ([Download](https://www.docker.com/))
 - **OpenAI API Key**: With GPT-4 Realtime access ([Get key](https://platform.openai.com/api-keys))
+- **pre-commit** (optional): For code quality checks ([Install](https://pre-commit.com/))
 
 ### Local Development with Docker Compose
 
@@ -135,21 +136,32 @@ npm run dev
 ```
 .
 ├── backend/              # Go backend (Gin + WebSocket)
-│   ├── handlers/         # WebSocket handler + OpenAI integration
-│   ├── config/           # Environment configuration
-│   ├── main.go           # Server entry point
+│   ├── handlers/
+│   │   ├── auth.go       # JWT & Cloudflare Turnstile authentication
+│   │   └── chat.go       # WebSocket handler, OpenAI proxy, rate limiting
+│   ├── config/
+│   │   └── config.go     # Environment configuration, system prompt loading
+│   ├── main.go           # Server entry point, CORS, routes
+│   ├── system_prompt.txt # System prompt for local development
 │   └── Dockerfile        # Multi-stage build
 │
 ├── frontend/             # React frontend (TypeScript + Vite)
 │   ├── src/
-│   │   ├── components/   # Chat + Resume components
-│   │   └── App.tsx       # Main layout
+│   │   ├── components/
+│   │   │   ├── Chat.tsx  # WebSocket client, JWT auth, audio playback
+│   │   │   └── Resume.tsx # Resume content and layout
+│   │   └── App.tsx       # Main application layout
 │   ├── Dockerfile        # Multi-stage build with nginx
 │   └── docker-entrypoint.sh  # Runtime env injection
 │
 ├── chart/                # Helm chart for k8s deployment
-│   ├── values.yaml       # Configuration
-│   └── templates/        # Kubernetes manifests
+│   ├── values.yaml       # Configuration (system prompt, rate limits, etc)
+│   └── templates/
+│       ├── backend-statefulset.yaml  # Backend StatefulSet
+│       ├── frontend-deployment.yaml  # Frontend Deployment
+│       ├── configmap.yaml            # System prompt ConfigMap
+│       ├── middleware.yaml           # Traefik rate limiting
+│       └── ...           # Other k8s manifests
 │
 ├── argocd/               # ArgoCD application manifest
 ├── docker-compose.yaml   # Local development environment
@@ -195,8 +207,12 @@ kubectl apply -f argocd/resume.yaml
 
 **Backend:**
 - `OPENAI_API_KEY` - OpenAI API key (required)
-- `OPENAI_MODEL` - Model to use (default: gpt-4o-realtime-preview-2024-12-17)
+- `JWT_SECRET` - Secret for signing JWT tokens (required for production, 32+ bytes)
+- `TURNSTILE_SECRET` - Cloudflare Turnstile secret key (optional, enables bot protection)
+- `TURNSTILE_SITE_KEY` - Cloudflare Turnstile site key (optional)
+- `OPENAI_MODEL` - Model to use (default: gpt-realtime-mini)
 - `PORT` - Server port (default: 8080)
+- `SYSTEM_PROMPT_PATH` - System prompt file path (default: /app/data/system_prompt.txt)
 
 **Frontend (runtime):**
 - `VITE_WS_URL` - WebSocket URL for backend connection
@@ -210,7 +226,25 @@ Edit `chart/values.yaml` → `systemPrompt.content` to customize the AI's behavi
 
 Edit `frontend/src/components/Resume.tsx` to update the resume content and styling.
 
+## API Endpoints
+
+### Authentication
+- `POST /api/verify-turnstile` - Verify Cloudflare Turnstile token, receive JWT
+- `POST /api/token` - Get JWT token (rate-limited, for development)
+- `GET /api/turnstile-sitekey` - Get Turnstile site key for frontend
+
+### WebSocket
+- `GET /ws/chat` - WebSocket endpoint (requires JWT in Authorization header or Sec-WebSocket-Protocol)
+
+### Health
+- `GET /health` - Health check endpoint
+
 ## WebSocket Protocol
+
+### Authentication
+WebSocket connections require a JWT token passed via:
+- `Authorization: Bearer <token>` header, or
+- `Sec-WebSocket-Protocol: <token>` header
 
 ### Client → Server
 ```json
@@ -224,12 +258,48 @@ Edit `frontend/src/components/Resume.tsx` to update the resume content and styli
 {"type": "audio_delta", "audio": "base64-pcm16-data..."}
 {"type": "audio_done"}
 {"type": "response_done"}
+{"type": "error", "error": "Error message"}
 ```
 
 ## Development Guide
 
+### Code Quality
+
+This project uses [pre-commit](https://pre-commit.com/) hooks for automated code quality checks:
+
+```bash
+# Install pre-commit (one time)
+pip install pre-commit
+
+# Install git hooks (one time per clone)
+pre-commit install
+
+# Run manually on all files
+pre-commit run --all-files
+
+# Hooks run automatically on git commit
+git commit -m "Your message"  # Hooks run before commit
+```
+
+**Included checks**:
+- Go: `go fmt`, `go vet`, `go imports`, `go mod tidy`
+- Dockerfile: `hadolint` linting
+- YAML: `yamllint` validation
+- Markdown: `markdownlint` formatting
+- Shell scripts: `shellcheck` validation
+- Secrets: `detect-secrets` scanning
+- General: trailing whitespace, EOF newlines, merge conflicts
+
+**Frontend linting** (run separately):
+```bash
+cd frontend
+npm run lint    # ESLint
+npm run format  # Prettier (if configured)
+```
+
 For detailed development information, see [CLAUDE.md](CLAUDE.md) which includes:
 - Detailed architecture
+- Authentication flow
 - Code organization
 - WebSocket protocol details
 - Deployment workflows
@@ -239,11 +309,18 @@ For detailed development information, see [CLAUDE.md](CLAUDE.md) which includes:
 
 ## Security
 
-- **API Key Protection**: Never commit .env files
+- **API Key Protection**: Never commit .env files, use Kubernetes secrets
+- **Authentication**: JWT tokens with 30-minute expiration
+- **Bot Protection**: Cloudflare Turnstile challenge (optional)
+- **Rate Limiting**:
+  - Per-connection: 1 message per 5 seconds, burst of 3
+  - Per-IP: 10 concurrent connections max
+  - Traefik middleware: Backend 2 req/sec, Frontend 20 req/sec
+- **Input Validation**: Message length limits (1-4000 chars), control character sanitization
 - **CORS**: Configured for specific origins only
-- **Non-root Containers**: Both images run as non-root users
+- **Non-root Containers**: Backend runs as UID 1000, Frontend as UID 101
 - **TLS**: Production uses HTTPS/WSS with Let's Encrypt
-- **Rate Limiting**: Traefik middleware limits request rates
+- **Security Contexts**: seccompProfile, no privilege escalation, drop all capabilities
 
 ## Links
 

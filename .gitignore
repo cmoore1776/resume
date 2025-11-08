@@ -38,3 +38,6 @@ k8s/overlays/*/secrets.yaml
 chart/charts/
 chart/*.tgz
 *.lock
+
+# Pre-commit
+.pre-commit-config.yaml.bak
