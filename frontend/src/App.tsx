@@ -1,11 +1,8 @@
-import { useState } from 'react';
 import Chat from './components/Chat';
 import Resume from './components/Resume';
 import './App.css';
 
 function App() {
-  const [isSpeaking, setIsSpeaking] = useState(false);
-
   return (
     <div className="app">
       <div className="resume-section">
@@ -13,7 +10,7 @@ function App() {
       </div>
 
       <div className="chat-section">
-        <Chat onSpeakingChange={setIsSpeaking} />
+        <Chat onSpeakingChange={() => {}} />
       </div>
     </div>
   );

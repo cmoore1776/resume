@@ -3,7 +3,7 @@
 # Backend configuration
 backend:
   image:
-    repository: registry.k3s.local.christianmoore.me/resume/backend
+    repository: registry.k3s.local.christianmoore.me:8443/resume/backend
     tag: "latest"
     pullPolicy: IfNotPresent
 
@@ -56,7 +56,7 @@ backend:
 # Frontend configuration
 frontend:
   image:
-    repository: registry.k3s.local.christianmoore.me/resume/frontend
+    repository: registry.k3s.local.christianmoore.me:8443/resume/frontend
     tag: "latest"
     pullPolicy: IfNotPresent
 

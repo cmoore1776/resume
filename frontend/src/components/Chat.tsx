@@ -53,7 +53,8 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
 
         // Create audio buffer
         const audioBuffer = audioContext.createBuffer(1, samples.length, 24000);
-        audioBuffer.copyToChannel(samples, 0);
+        const channelData = audioBuffer.getChannelData(0);
+        channelData.set(samples);
 
         // Create and play buffer source
         const source = audioContext.createBufferSource();
