@@ -12,11 +12,10 @@ interface ChatProps {
 // Declare turnstile on window for TypeScript
 declare global {
   interface Window {
-    onTurnstileSuccess?: (token: string) => void;
     turnstile?: {
       render: (element: string | HTMLElement, options: {
         sitekey: string;
-        callback: string;
+        callback: (token: string) => void;
       }) => void;
     };
   }
@@ -26,8 +25,8 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
   const [currentAssistantMessage, setCurrentAssistantMessage] = useState('');
+  const [isMuted, setIsMuted] = useState(false);
 
   // Authentication state
   const [jwtToken, setJwtToken] = useState<string | null>(null);
@@ -97,27 +96,41 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
     }
   }, []);
 
-  // Setup global Turnstile callback
+  // Poll for Turnstile script and render widget
   useEffect(() => {
-    window.onTurnstileSuccess = handleTurnstileSuccess;
-    return () => {
-      delete window.onTurnstileSuccess;
-    };
-  }, [handleTurnstileSuccess]);
+    if (!turnstileSiteKey || isVerified || turnstileRendered.current) return;
 
-  // Render Turnstile widget when site key is available
-  useEffect(() => {
-    if (turnstileSiteKey && !isVerified && !turnstileRendered.current && window.turnstile) {
+    const renderWidget = () => {
       const element = document.getElementById('turnstile-widget');
-      if (element) {
-        window.turnstile.render(element, {
-          sitekey: turnstileSiteKey,
-          callback: 'onTurnstileSuccess',
-        });
-        turnstileRendered.current = true;
+      if (element && window.turnstile) {
+        try {
+          window.turnstile.render(element, {
+            sitekey: turnstileSiteKey,
+            callback: handleTurnstileSuccess,
+          });
+          turnstileRendered.current = true;
+          console.log('Turnstile widget rendered successfully');
+        } catch (error) {
+          console.error('Failed to render Turnstile widget:', error);
+        }
       }
+    };
+
+    // Try rendering immediately
+    renderWidget();
+
+    // If not rendered, poll for script to load
+    if (!turnstileRendered.current) {
+      const interval = setInterval(() => {
+        if (window.turnstile) {
+          renderWidget();
+          clearInterval(interval);
+        }
+      }, 100);
+
+      return () => clearInterval(interval);
     }
-  }, [turnstileSiteKey, isVerified]);
+  }, [turnstileSiteKey, isVerified, handleTurnstileSuccess]);
 
   const playAudioBuffers = useCallback(async () => {
     if (isPlayingAudioRef.current) return;
@@ -132,7 +145,6 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
 
     const audioContext = audioContextRef.current;
     isPlayingAudioRef.current = true;
-    setIsPlaying(true);
     onSpeakingChange(true);
 
     try {
@@ -148,7 +160,14 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
         // Create and play buffer source
         const source = audioContext.createBufferSource();
         source.buffer = audioBuffer;
-        source.connect(audioContext.destination);
+
+        // Create gain node for mute control
+        const gainNode = audioContext.createGain();
+        source.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+
+        // Set volume based on mute state
+        gainNode.gain.value = isMuted ? 0 : 1;
 
         await new Promise<void>((resolve) => {
           source.onended = () => resolve();
@@ -160,11 +179,10 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
     } finally {
       isPlayingAudioRef.current = false;
       if (audioBuffersRef.current.length === 0) {
-        setIsPlaying(false);
         onSpeakingChange(false);
       }
     }
-  }, [onSpeakingChange]);
+  }, [onSpeakingChange, isMuted]);
 
   // Initialize WebSocket connection (only when authenticated)
   useEffect(() => {
@@ -236,7 +254,6 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
 
         case 'audio_done':
           // Audio streaming complete
-          setIsPlaying(false);
           onSpeakingChange(false);
           break;
 
@@ -283,20 +300,6 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
       ws.close();
     };
   }, [jwtToken]); // Reconnect when JWT token changes
-
-  const stopAudio = () => {
-    // Clear audio buffers
-    audioBuffersRef.current = [];
-    isPlayingAudioRef.current = false;
-    setIsPlaying(false);
-    onSpeakingChange(false);
-
-    // Stop audio context
-    if (audioContextRef.current) {
-      audioContextRef.current.close();
-      audioContextRef.current = null;
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -404,11 +407,14 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
               disabled={isLoading}
               className="message-input"
             />
-            {isPlaying && (
-              <button type="button" onClick={stopAudio} className="stop-button">
-                Stop
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => setIsMuted(!isMuted)}
+              className="mute-button"
+              title={isMuted ? "Unmute" : "Mute"}
+            >
+              {isMuted ? '🔇' : '🔊'}
+            </button>
             <button
               type="submit"
               disabled={isLoading || !input.trim() || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN}
