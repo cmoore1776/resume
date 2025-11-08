@@ -427,12 +427,10 @@ body {
 }
 
 .volume-slider {
-  writing-mode: vertical-lr;
-  direction: rtl;
-  width: 6rem;
-  height: 0.5rem;
-  -webkit-appearance: none;
-  appearance: none;
+  -webkit-appearance: slider-vertical;
+  appearance: slider-vertical;
+  width: 0.5rem;
+  height: 6rem;
   background: #3a3a3a;
   border-radius: 0.25rem;
   outline: none;

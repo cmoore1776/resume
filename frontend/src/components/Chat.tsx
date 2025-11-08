@@ -26,6 +26,7 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
   const audioBuffersRef = useRef<Float32Array[]>([]);
   const isPlayingAudioRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const volumeControlRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -34,6 +35,23 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
   useEffect(() => {
     scrollToBottom();
   }, [messages, currentAssistantMessage]);
+
+  // Close volume slider when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (volumeControlRef.current && !volumeControlRef.current.contains(event.target as Node)) {
+        setShowVolumeSlider(false);
+      }
+    };
+
+    if (showVolumeSlider) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showVolumeSlider]);
 
   // Automatically fetch JWT token on mount
   useEffect(() => {
@@ -349,9 +367,10 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
               disabled={isLoading}
               className="message-input"
             />
-            <div className="volume-control">
+            <div className="volume-control" ref={volumeControlRef}>
               {showVolumeSlider && (
                 <div className="volume-slider-container">
+                  <div className="volume-label">{Math.round(volume * 100)}%</div>
                   <input
                     type="range"
                     min="0"
@@ -359,10 +378,7 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
                     value={volume * 100}
                     onChange={(e) => setVolume(Number(e.target.value) / 100)}
                     className="volume-slider"
-                    onBlur={() => setShowVolumeSlider(false)}
-                    autoFocus
                   />
-                  <div className="volume-label">{Math.round(volume * 100)}%</div>
                 </div>
               )}
               <button
