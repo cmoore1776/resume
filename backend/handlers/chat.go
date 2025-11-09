@@ -24,10 +24,10 @@ const (
 
 	// Rate limiting
 	MessageRateLimit = time.Second * 5 // 1 message per 5 seconds
-	MessageBurst     = 3                // Allow burst of 3 messages
+	MessageBurst     = 3               // Allow burst of 3 messages
 
 	// Connection limits
-	MaxConnectionsPerIP = 10             // Maximum concurrent connections per IP address (shared by Traefik proxy)
+	MaxConnectionsPerIP = 10               // Maximum concurrent connections per IP address (shared by Traefik proxy)
 	ConnectionTimeout   = 10 * time.Minute // WebSocket connection timeout
 	PingInterval        = 1 * time.Minute  // Ping interval for keepalive
 )

@@ -22,6 +22,10 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
   const [jwtToken, setJwtToken] = useState<string | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(true);
 
+  // Connection state
+  const [isConnected, setIsConnected] = useState(false);
+  const [showReconnectPrompt, setShowReconnectPrompt] = useState(false);
+
   const wsRef = useRef<WebSocket | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioBuffersRef = useRef<Float32Array[]>([]);
@@ -151,6 +155,8 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
 
     ws.onopen = () => {
       // WebSocket connection established
+      setIsConnected(true);
+      setShowReconnectPrompt(false);
     };
 
     ws.onmessage = (event) => {
@@ -238,6 +244,7 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
 
     ws.onclose = (event) => {
       console.log('WebSocket closed with code:', event.code);
+      setIsConnected(false);
 
       // If connection failed to establish (likely auth error), refresh JWT
       // Code 1006 means abnormal closure (connection failed before opening)
@@ -274,6 +281,9 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
           .finally(() => {
             setIsAuthenticating(false);
           });
+      } else {
+        // For other close reasons (idle timeout, etc), show reconnect prompt
+        setShowReconnectPrompt(true);
       }
     };
 
@@ -283,7 +293,41 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
     return () => {
       ws.close();
     };
-  }, [jwtToken]); // Reconnect when JWT token changes
+  }, [jwtToken, playAudioBuffers, onSpeakingChange]); // Reconnect when JWT token changes
+
+  const handleReconnect = () => {
+    // Try to refresh JWT token and reconnect
+    setShowReconnectPrompt(false);
+    setIsAuthenticating(true);
+    localStorage.removeItem('jwt_token');
+
+    const apiUrl = import.meta.env.VITE_API_URL || 'https://resume.k3s.christianmoore.me';
+    fetch(`${apiUrl}/api/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.jwt) {
+          setJwtToken(data.jwt);
+          localStorage.setItem('jwt_token', data.jwt);
+        }
+      })
+      .catch(err => {
+        console.error('Failed to refresh JWT token:', err);
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: 'Failed to reconnect. Please refresh the page.',
+          },
+        ]);
+        setShowReconnectPrompt(true);
+      })
+      .finally(() => {
+        setIsAuthenticating(false);
+      });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -328,6 +372,45 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
         </div>
       )}
 
+      {/* Show reconnect prompt when disconnected */}
+      {showReconnectPrompt && !isAuthenticating && (
+        <div className="reconnect-prompt" style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          backgroundColor: 'rgba(0, 0, 0, 0.9)',
+          padding: '2rem',
+          borderRadius: '8px',
+          textAlign: 'center',
+          zIndex: 1000,
+          minWidth: '300px',
+          border: '2px solid #ff6b6b'
+        }}>
+          <h3 style={{ marginBottom: '1rem', color: '#ff6b6b' }}>Connection Lost</h3>
+          <p style={{ marginBottom: '1.5rem', color: '#ccc' }}>
+            Your connection to the chat service has been lost.
+          </p>
+          <button
+            onClick={handleReconnect}
+            style={{
+              padding: '0.75rem 1.5rem',
+              fontSize: '1rem',
+              backgroundColor: '#4caf50',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontWeight: 'bold'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#45a049'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#4caf50'}
+          >
+            Reconnect
+          </button>
+        </div>
+      )}
+
       {/* Show chat interface once authenticated */}
       {!isAuthenticating && (
         <>
@@ -365,8 +448,8 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask me anything..."
-              disabled={isLoading}
+              placeholder={isConnected ? "Ask me anything..." : "Disconnected..."}
+              disabled={isLoading || !isConnected}
               className="message-input"
             />
             <div className="volume-control" ref={volumeControlRef}>
@@ -403,7 +486,7 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
             </div>
             <button
               type="submit"
-              disabled={isLoading || !input.trim() || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN}
+              disabled={isLoading || !input.trim() || !isConnected || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN}
               className="send-button"
             >
               Send

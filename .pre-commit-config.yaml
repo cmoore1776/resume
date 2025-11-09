@@ -69,6 +69,13 @@ repos:
         args: ['--baseline', '.secrets.baseline']
         exclude: package-lock.json
 
-# Frontend linting (ESLint) and formatting (Prettier) via npm scripts
-# Note: These need to be run via npm/npx, not pre-commit hooks
-# Run: cd frontend && npm run lint && npm run format
+  # Testing and linting via Makefile (runs after all other checks)
+  - repo: local
+    hooks:
+      - id: make-test
+        name: make test (lint + all tests)
+        entry: make test
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
