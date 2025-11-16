@@ -103,6 +103,18 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
     }
 
     const audioContext = audioContextRef.current;
+
+    // Resume audio context if suspended (required by browser autoplay policies)
+    if (audioContext.state === 'suspended') {
+      try {
+        await audioContext.resume();
+        console.log('AudioContext resumed');
+      } catch (error) {
+        console.error('Failed to resume AudioContext:', error);
+        return;
+      }
+    }
+
     isPlayingAudioRef.current = true;
     onSpeakingChange(true);
 

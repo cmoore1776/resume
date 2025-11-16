@@ -4,7 +4,7 @@
 backend:
   image:
     repository: registry.k3s.local.christianmoore.me:8443/resume/backend
-    tag: "v1.0.19"
+    tag: "v1.0.24"
     pullPolicy: IfNotPresent
 
   replicaCount: 1
@@ -24,6 +24,10 @@ backend:
   env:
     openaiModel: "gpt-4o-realtime-preview-2024-12-17"
     port: "8080"
+    # Local pipeline configuration (set useLocalPipeline to "true" to enable)
+    useLocalPipeline: "true"
+    localLLMURL: "https://llama.k3s.local.christianmoore.me:8443/qwen2.5-7b-instruct"
+    ttsURL: "http://localhost:8000"
 
   # Resource limits
   resources:
@@ -53,11 +57,30 @@ backend:
     timeoutSeconds: 3
     failureThreshold: 3
 
+  # TTS sidecar container (for local pipeline mode)
+  tts:
+    enabled: true
+    image:
+      repository: ghcr.io/matatonic/openedai-speech
+      tag: "latest"
+      pullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+    storage:
+      size: 10Gi
+      # Leave empty to use default storage class
+      storageClass: ""
+
 # Frontend configuration
 frontend:
   image:
     repository: registry.k3s.local.christianmoore.me:8443/resume/frontend
-    tag: "v1.0.23"
+    tag: "v1.0.24"
     pullPolicy: IfNotPresent
 
   replicaCount: 1

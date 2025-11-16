@@ -78,6 +78,12 @@ spec:
               value: {{ .Values.backend.env.openaiModel | quote }}
             - name: PORT
               value: {{ .Values.backend.env.port | quote }}
+            - name: USE_LOCAL_PIPELINE
+              value: {{ .Values.backend.env.useLocalPipeline | quote }}
+            - name: LOCAL_LLM_URL
+              value: {{ .Values.backend.env.localLLMURL | quote }}
+            - name: TTS_URL
+              value: {{ .Values.backend.env.ttsURL | quote }}
           ports:
             - name: http
               containerPort: {{ .Values.backend.service.targetPort }}
@@ -96,6 +102,25 @@ spec:
               readOnly: true
           resources:
             {{- toYaml .Values.backend.resources | nindent 12 }}
+        {{- if .Values.backend.tts.enabled }}
+        - name: tts
+          image: "{{ .Values.backend.tts.image.repository }}:{{ .Values.backend.tts.image.tag }}"
+          imagePullPolicy: {{ .Values.backend.tts.image.pullPolicy }}
+          env:
+            - name: TTS_HOME
+              value: voices
+            - name: HF_HOME
+              value: voices
+          ports:
+            - name: tts
+              containerPort: 8000
+              protocol: TCP
+          volumeMounts:
+            - name: tts-voices
+              mountPath: /app/voices
+          resources:
+            {{- toYaml .Values.backend.tts.resources | nindent 12 }}
+        {{- end }}
       volumes:
         - name: system-prompt
           configMap:
@@ -112,3 +137,17 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+  {{- if .Values.backend.tts.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: tts-voices
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: {{ .Values.backend.tts.storage.size }}
+        {{- if .Values.backend.tts.storage.storageClass }}
+        storageClassName: {{ .Values.backend.tts.storage.storageClass }}
+        {{- end }}
+  {{- end }}
