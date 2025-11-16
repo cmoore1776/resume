@@ -32,11 +32,11 @@ backend:
   # Resource limits
   resources:
     requests:
-      cpu: 1000m
-      memory: 128Mi
+      cpu: 100m
+      memory: 64Mi
     limits:
-      cpu: 2000m
-      memory: 512Mi
+      cpu: 200m
+      memory: 128Mi
 
   # Health probes
   livenessProbe:
