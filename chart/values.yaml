@@ -4,7 +4,7 @@
 backend:
   image:
     repository: registry.k3s.local.christianmoore.me:8443/resume/backend
-    tag: "v1.0.24"
+    tag: "v1.0.25"
     pullPolicy: IfNotPresent
 
   replicaCount: 1
@@ -28,6 +28,8 @@ backend:
     useLocalPipeline: "true"
     localLLMURL: "https://llama.k3s.local.christianmoore.me:8443/qwen2.5-7b-instruct"
     ttsURL: "http://localhost:8000"
+    ttsVoice: "onyx"      # TTS voice (onyx, alloy, echo, fable, nova, shimmer)
+    ttsSpeed: "0.95"      # TTS speed (0.25-4.0, default 1.0)
 
   # Resource limits
   resources:
@@ -80,7 +82,7 @@ backend:
 frontend:
   image:
     repository: registry.k3s.local.christianmoore.me:8443/resume/frontend
-    tag: "v1.0.24"
+    tag: "v1.0.25"
     pullPolicy: IfNotPresent
 
   replicaCount: 1

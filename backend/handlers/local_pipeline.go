@@ -62,15 +62,28 @@ type LocalPipelineHandler struct {
 	llmURL       string
 	systemPrompt string
 	ttsURL       string
+	ttsVoice     string
+	ttsSpeed     float64
 }
 
-func NewLocalPipelineHandler(llmURL, systemPrompt, ttsURL string) (*LocalPipelineHandler, error) {
-	log.Printf("Local pipeline initialized: LLM=%s, TTS=%s", llmURL, ttsURL)
+func NewLocalPipelineHandler(llmURL, systemPrompt, ttsURL, ttsVoice, ttsSpeed string) (*LocalPipelineHandler, error) {
+	log.Printf("Local pipeline initialized: LLM=%s, TTS=%s, Voice=%s, Speed=%s", llmURL, ttsURL, ttsVoice, ttsSpeed)
+
+	// Parse speed string to float64
+	speedFloat := 0.95 // default
+	if ttsSpeed != "" {
+		if _, err := fmt.Sscanf(ttsSpeed, "%f", &speedFloat); err != nil {
+			log.Printf("Warning: failed to parse TTS_SPEED=%s, using default 0.95: %v", ttsSpeed, err)
+			speedFloat = 0.95
+		}
+	}
 
 	return &LocalPipelineHandler{
 		llmURL:       llmURL,
 		systemPrompt: systemPrompt,
 		ttsURL:       ttsURL,
+		ttsVoice:     ttsVoice,
+		ttsSpeed:     speedFloat,
 	}, nil
 }
 
@@ -175,9 +188,9 @@ func (h *LocalPipelineHandler) GenerateAndStreamAudio(ctx context.Context, text 
 	ttsReq := TTSRequest{
 		Model:          "tts-1",
 		Input:          text,
-		Voice:          "fable", // British masculine voice
+		Voice:          h.ttsVoice,
 		ResponseFormat: "wav",
-		Speed:          0.95, // Slightly slower (0.25-4.0, default 1.0)
+		Speed:          h.ttsSpeed,
 	}
 
 	jsonData, err := json.Marshal(ttsReq)

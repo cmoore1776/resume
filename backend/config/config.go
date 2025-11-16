@@ -15,6 +15,11 @@ type Config struct {
 	JWTSecret        string
 	TurnstileSecret  string
 	TurnstileSiteKey string
+	UseLocalPipeline bool
+	LocalLLMURL      string
+	TTSURL           string
+	TTSVoice         string
+	TTSSpeed         string
 }
 
 func Load() *Config {
@@ -30,6 +35,11 @@ func Load() *Config {
 		JWTSecret:        getEnv("JWT_SECRET", ""),
 		TurnstileSecret:  getEnv("TURNSTILE_SECRET", ""),
 		TurnstileSiteKey: getEnv("TURNSTILE_SITE_KEY", ""),
+		UseLocalPipeline: getEnv("USE_LOCAL_PIPELINE", "false") == "true",
+		LocalLLMURL:      getEnv("LOCAL_LLM_URL", "https://llama.k3s.local.christianmoore.me:8443/qwen2.5-7b-instruct"),
+		TTSURL:           getEnv("TTS_URL", "http://localhost:8000"),
+		TTSVoice:         getEnv("TTS_VOICE", "onyx"),
+		TTSSpeed:         getEnv("TTS_SPEED", "0.95"),
 	}
 
 	// Load system prompt from file (check data volume first, then fall back to local)

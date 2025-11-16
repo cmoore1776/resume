@@ -84,6 +84,10 @@ spec:
               value: {{ .Values.backend.env.localLLMURL | quote }}
             - name: TTS_URL
               value: {{ .Values.backend.env.ttsURL | quote }}
+            - name: TTS_VOICE
+              value: {{ .Values.backend.env.ttsVoice | quote }}
+            - name: TTS_SPEED
+              value: {{ .Values.backend.env.ttsSpeed | quote }}
           ports:
             - name: http
               containerPort: {{ .Values.backend.service.targetPort }}

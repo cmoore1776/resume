@@ -13,12 +13,29 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY:-your-api-key-here}
       - OPENAI_MODEL=gpt-4o-realtime-preview-2024-12-17
       - PORT=8080
+      # Local pipeline mode configuration
+      - USE_LOCAL_PIPELINE=true
+      - LOCAL_LLM_URL=https://llama.k3s.local.christianmoore.me:8443/qwen2.5-7b-instruct
+      - TTS_URL=http://tts:8000
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
       interval: 10s
       timeout: 5s
       retries: 3
       start_period: 10s
+    networks:
+      - resume-network
+
+  tts:
+    image: ghcr.io/matatonic/openedai-speech:latest
+    container_name: resume-tts-local
+    ports:
+      - "8000:8000"
+    environment:
+      - TTS_HOME=voices
+      - HF_HOME=voices
+    volumes:
+      - tts-voices:/app/voices
     networks:
       - resume-network
 
@@ -42,3 +59,6 @@ services:
 networks:
   resume-network:
     driver: bridge
+
+volumes:
+  tts-voices:

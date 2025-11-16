@@ -60,19 +60,37 @@ var upgrader = websocket.Upgrader{
 }
 
 type ChatHandler struct {
-	apiKey       string
-	model        string
-	systemPrompt string
-	authHandler  *AuthHandler
+	apiKey              string
+	model               string
+	systemPrompt        string
+	authHandler         *AuthHandler
+	useLocalPipeline    bool
+	localPipelineHandler *LocalPipelineHandler
 }
 
-func NewChatHandler(apiKey, model, systemPrompt string, authHandler *AuthHandler) *ChatHandler {
-	return &ChatHandler{
-		apiKey:       apiKey,
-		model:        model,
-		systemPrompt: systemPrompt,
-		authHandler:  authHandler,
+func NewChatHandler(apiKey, model, systemPrompt string, authHandler *AuthHandler, useLocalPipeline bool, localLLMURL string, ttsURL string, ttsVoice string, ttsSpeed string) (*ChatHandler, error) {
+	handler := &ChatHandler{
+		apiKey:           apiKey,
+		model:            model,
+		systemPrompt:     systemPrompt,
+		authHandler:      authHandler,
+		useLocalPipeline: useLocalPipeline,
 	}
+
+	// Initialize local pipeline if enabled
+	if useLocalPipeline {
+		log.Printf("Initializing local pipeline (LLM + TTS) mode")
+		localHandler, err := NewLocalPipelineHandler(localLLMURL, systemPrompt, ttsURL, ttsVoice, ttsSpeed)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize local pipeline: %w", err)
+		}
+		handler.localPipelineHandler = localHandler
+		log.Printf("Local pipeline initialized successfully")
+	} else {
+		log.Printf("Using OpenAI Realtime API mode")
+	}
+
+	return handler, nil
 }
 
 // ClientMessage represents messages from the frontend
@@ -187,51 +205,57 @@ func (h *ChatHandler) HandleWebSocket(c *gin.Context) {
 		return nil
 	})
 
-	// Create OpenAI Realtime client
-	client := openairt.NewClient(h.apiKey)
 	ctx := context.Background()
 
-	// Connect to OpenAI Realtime API
-	log.Printf("Connecting to OpenAI Realtime API with model: %s", h.model)
-	realtimeConn, err := client.Connect(ctx, openairt.WithModel(h.model))
-	if err != nil {
-		log.Printf("Failed to connect to OpenAI Realtime API: %v", err)
-		clientWS.WriteJSON(ServerMessage{
-			Type:  "error",
-			Error: "Failed to connect to AI service",
-		})
-		return
-	}
-	defer realtimeConn.Close()
-	log.Printf("Successfully connected to OpenAI Realtime API")
+	// OpenAI Realtime connection (only if not using local pipeline)
+	var realtimeConn *openairt.Conn
+	if !h.useLocalPipeline {
+		// Create OpenAI Realtime client
+		client := openairt.NewClient(h.apiKey)
 
-	// Configure session with audio modality (includes text transcript automatically)
-	sessionUpdate := openairt.SessionUpdateEvent{
-		Session: openairt.SessionUnion{
-			Realtime: &openairt.RealtimeSession{
-				Instructions: h.systemPrompt,
-				Audio: &openairt.RealtimeSessionAudio{
-					Output: &openairt.SessionAudioOutput{
-						Voice: openairt.VoiceCedar, // Masculine voice
+		// Connect to OpenAI Realtime API
+		log.Printf("Connecting to OpenAI Realtime API with model: %s", h.model)
+		conn, err := client.Connect(ctx, openairt.WithModel(h.model))
+		if err != nil {
+			log.Printf("Failed to connect to OpenAI Realtime API: %v", err)
+			clientWS.WriteJSON(ServerMessage{
+				Type:  "error",
+				Error: "Failed to connect to AI service",
+			})
+			return
+		}
+		realtimeConn = conn
+		defer realtimeConn.Close()
+		log.Printf("Successfully connected to OpenAI Realtime API")
+
+		// Configure session with audio modality (includes text transcript automatically)
+		sessionUpdate := openairt.SessionUpdateEvent{
+			Session: openairt.SessionUnion{
+				Realtime: &openairt.RealtimeSession{
+					Instructions: h.systemPrompt,
+					Audio: &openairt.RealtimeSessionAudio{
+						Output: &openairt.SessionAudioOutput{
+							Voice: openairt.VoiceCedar, // Masculine voice
+						},
+					},
+					OutputModalities: []openairt.Modality{
+						openairt.ModalityAudio, // This includes both audio and text transcript
 					},
 				},
-				OutputModalities: []openairt.Modality{
-					openairt.ModalityAudio, // This includes both audio and text transcript
-				},
 			},
-		},
-	}
+		}
 
-	log.Printf("Configuring session with system prompt and modalities...")
-	if err := realtimeConn.SendMessage(ctx, sessionUpdate); err != nil {
-		log.Printf("Failed to configure session: %v", err)
-		clientWS.WriteJSON(ServerMessage{
-			Type:  "error",
-			Error: "Failed to configure AI session",
-		})
-		return
+		log.Printf("Configuring session with system prompt and modalities...")
+		if err := realtimeConn.SendMessage(ctx, sessionUpdate); err != nil {
+			log.Printf("Failed to configure session: %v", err)
+			clientWS.WriteJSON(ServerMessage{
+				Type:  "error",
+				Error: "Failed to configure AI session",
+			})
+			return
+		}
+		log.Printf("Session configured successfully")
 	}
-	log.Printf("Session configured successfully")
 
 	// Channel for handling errors and cleanup
 	done := make(chan struct{})
@@ -271,87 +295,89 @@ func (h *ChatHandler) HandleWebSocket(c *gin.Context) {
 		return err
 	}
 
-	// Handle messages from OpenAI Realtime API
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				log.Printf("Recovered from panic in OpenAI handler: %v", r)
-			}
-			doneOnce.Do(func() { close(done) })
-		}()
+	// Handle messages from OpenAI Realtime API (only if not using local pipeline)
+	if !h.useLocalPipeline {
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("Recovered from panic in OpenAI handler: %v", r)
+				}
+				doneOnce.Do(func() { close(done) })
+			}()
 
-		for {
-			select {
-			case <-done:
-				return
-			default:
-				event, err := realtimeConn.ReadMessage(ctx)
-				if err != nil {
-					log.Printf("Error receiving from OpenAI: %v", err)
-					sendJSON(ServerMessage{
-						Type:  "error",
-						Error: "Connection to AI service lost",
-					})
+			for {
+				select {
+				case <-done:
 					return
-				}
-
-				// Handle different event types
-				switch e := event.(type) {
-				case openairt.ResponseOutputAudioTranscriptDeltaEvent:
-					// Send text delta to client (from audio transcript)
-					log.Printf("Assistant response delta: %s", e.Delta)
-					if err := sendJSON(ServerMessage{
-						Type: "text_delta",
-						Text: e.Delta,
-					}); err != nil {
-						return
-					}
-
-				case openairt.ResponseOutputAudioTranscriptDoneEvent:
-					// Text is complete
-					log.Printf("Assistant response completed")
-					if err := sendJSON(ServerMessage{
-						Type: "text_done",
-					}); err != nil {
-						return
-					}
-
-				case openairt.ResponseOutputAudioDeltaEvent:
-					// Send audio delta to client (base64 encoded)
-					if err := sendJSON(ServerMessage{
-						Type:  "audio_delta",
-						Audio: e.Delta,
-					}); err != nil {
-						return
-					}
-
-				case openairt.ResponseOutputAudioDoneEvent:
-					// Notify client that audio is complete
-					if err := sendJSON(ServerMessage{
-						Type: "audio_done",
-					}); err != nil {
-						return
-					}
-
-				case openairt.ResponseDoneEvent:
-					// Response complete
-					if err := sendJSON(ServerMessage{
-						Type: "response_done",
-					}); err != nil {
-						return
-					}
-
-				case openairt.ErrorEvent:
-					// Log errors but don't send to client - responses still work despite errors
-					log.Printf("OpenAI ErrorEvent received (ignoring): %+v", e)
-
 				default:
-					// Log unhandled event types
-					log.Printf("Unhandled event type: %T", event)
+					event, err := realtimeConn.ReadMessage(ctx)
+					if err != nil {
+						log.Printf("Error receiving from OpenAI: %v", err)
+						sendJSON(ServerMessage{
+							Type:  "error",
+							Error: "Connection to AI service lost",
+						})
+						return
+					}
+
+					// Handle different event types
+					switch e := event.(type) {
+					case openairt.ResponseOutputAudioTranscriptDeltaEvent:
+						// Send text delta to client (from audio transcript)
+						log.Printf("Assistant response delta: %s", e.Delta)
+						if err := sendJSON(ServerMessage{
+							Type: "text_delta",
+							Text: e.Delta,
+						}); err != nil {
+							return
+						}
+
+					case openairt.ResponseOutputAudioTranscriptDoneEvent:
+						// Text is complete
+						log.Printf("Assistant response completed")
+						if err := sendJSON(ServerMessage{
+							Type: "text_done",
+						}); err != nil {
+							return
+						}
+
+					case openairt.ResponseOutputAudioDeltaEvent:
+						// Send audio delta to client (base64 encoded)
+						if err := sendJSON(ServerMessage{
+							Type:  "audio_delta",
+							Audio: e.Delta,
+						}); err != nil {
+							return
+						}
+
+					case openairt.ResponseOutputAudioDoneEvent:
+						// Notify client that audio is complete
+						if err := sendJSON(ServerMessage{
+							Type: "audio_done",
+						}); err != nil {
+							return
+						}
+
+					case openairt.ResponseDoneEvent:
+						// Response complete
+						if err := sendJSON(ServerMessage{
+							Type: "response_done",
+						}); err != nil {
+							return
+						}
+
+					case openairt.ErrorEvent:
+						// Log errors but don't send to client - responses still work despite errors
+						log.Printf("OpenAI ErrorEvent received (ignoring): %+v", e)
+
+					default:
+						// Log unhandled event types
+						log.Printf("Unhandled event type: %T", event)
+					}
 				}
 			}
-		}
-	}()
+		}()
+	}
 
 	// Handle messages from client
 	for {
@@ -412,39 +438,53 @@ func (h *ChatHandler) HandleWebSocket(c *gin.Context) {
 			log.Printf("Message validated: length=%d, rate_limit_ok=true", len(sanitized))
 			log.Printf("User message: %s", sanitized)
 
-			// Create conversation item with user message (use sanitized input)
-			item := openairt.ConversationItemCreateEvent{
-				Item: openairt.MessageItemUnion{
-					User: &openairt.MessageItemUser{
-						Content: []openairt.MessageContentInput{
-							{
-								Type: openairt.MessageContentTypeInputText,
-								Text: sanitized,
+			// Route to local pipeline or OpenAI based on config
+			if h.useLocalPipeline {
+				// Use local LLM + TTS pipeline
+				log.Printf("Routing to local pipeline")
+				if err := h.localPipelineHandler.HandleLocalPipeline(ctx, sanitized, clientWS, nil, sendJSON); err != nil {
+					log.Printf("Local pipeline error: %v", err)
+					sendJSON(ServerMessage{
+						Type:  "error",
+						Error: "Failed to process message",
+					})
+				}
+			} else {
+				// Use OpenAI Realtime API
+				// Create conversation item with user message (use sanitized input)
+				item := openairt.ConversationItemCreateEvent{
+					Item: openairt.MessageItemUnion{
+						User: &openairt.MessageItemUser{
+							Content: []openairt.MessageContentInput{
+								{
+									Type: openairt.MessageContentTypeInputText,
+									Text: sanitized,
+								},
 							},
 						},
 					},
-				},
-			}
+				}
 
-			if err := realtimeConn.SendMessage(ctx, item); err != nil {
-				log.Printf("Failed to send message: %v", err)
-				sendJSON(ServerMessage{
-					Type:  "error",
-					Error: "Failed to send message",
-				})
-				continue
-			}
+				if err := realtimeConn.SendMessage(ctx, item); err != nil {
+					log.Printf("Failed to send message: %v", err)
+					sendJSON(ServerMessage{
+						Type:  "error",
+						Error: "Failed to send message",
+					})
+					continue
+				}
 
-			// Request response
-			responseCreate := openairt.ResponseCreateEvent{}
+				// Request response
+				responseCreate := openairt.ResponseCreateEvent{}
 
-			if err := realtimeConn.SendMessage(ctx, responseCreate); err != nil {
-				log.Printf("Failed to request response: %v", err)
-				sendJSON(ServerMessage{
-					Type:  "error",
-					Error: "Failed to request response",
-				})
-				continue
+				if err := realtimeConn.SendMessage(ctx, responseCreate); err != nil {
+					log.Printf("Failed to request response: %v", err)
+					sendJSON(ServerMessage{
+						Type:  "error",
+						Error: "Failed to request response",
+					})
+					continue
+				}
 			}
 
 		default:

@@ -14,15 +14,18 @@ func main() {
 	cfg := config.Load()
 
 	// Validate required configuration
-	if cfg.OpenAIAPIKey == "" {
-		log.Fatal("OPENAI_API_KEY is required")
+	if !cfg.UseLocalPipeline && cfg.OpenAIAPIKey == "" {
+		log.Fatal("OPENAI_API_KEY is required when not using local pipeline")
 	}
 
 	// Initialize auth handler
 	authHandler := handlers.NewAuthHandler(cfg.JWTSecret, cfg.TurnstileSecret, cfg.TurnstileSiteKey)
 
 	// Initialize chat handler
-	chatHandler := handlers.NewChatHandler(cfg.OpenAIAPIKey, cfg.OpenAIModel, cfg.SystemPrompt, authHandler)
+	chatHandler, err := handlers.NewChatHandler(cfg.OpenAIAPIKey, cfg.OpenAIModel, cfg.SystemPrompt, authHandler, cfg.UseLocalPipeline, cfg.LocalLLMURL, cfg.TTSURL, cfg.TTSVoice, cfg.TTSSpeed)
+	if err != nil {
+		log.Fatalf("Failed to initialize chat handler: %v", err)
+	}
 
 	// Setup Gin router
 	router := gin.Default()
