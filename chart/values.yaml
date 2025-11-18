@@ -79,7 +79,7 @@ backend:
 frontend:
   image:
     repository: registry.k3s.local.christianmoore.me:8443/resume/frontend
-    tag: "v1.0.26"
+    tag: "v1.0.27"
     pullPolicy: IfNotPresent
 
   replicaCount: 1
