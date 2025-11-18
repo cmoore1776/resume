@@ -12,6 +12,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -78,13 +79,105 @@ func NewLocalPipelineHandler(llmURL, systemPrompt, ttsURL, ttsVoice, ttsSpeed st
 		}
 	}
 
-	return &LocalPipelineHandler{
+	handler := &LocalPipelineHandler{
 		llmURL:       llmURL,
 		systemPrompt: systemPrompt,
 		ttsURL:       ttsURL,
 		ttsVoice:     ttsVoice,
 		ttsSpeed:     speedFloat,
-	}, nil
+	}
+
+	// Warm up the TTS model to avoid garbled first request
+	go handler.warmupTTS()
+
+	return handler, nil
+}
+
+// warmupTTS sends multiple test phrases to fully pre-load the TTS model
+func (h *LocalPipelineHandler) warmupTTS() {
+	log.Printf("Warming up TTS model...")
+
+	// Wait a bit for the TTS service to be fully ready
+	time.Sleep(2 * time.Second)
+
+	// Send multiple warmup requests with increasingly longer phrases
+	// This helps ensure the model is fully loaded and cached
+	testPhrases := []string{
+		"Hello.",
+		"Testing the text to speech system.",
+		"This is a longer sentence to ensure the model is fully warmed up and ready to process user requests.",
+	}
+
+	successCount := 0
+	for i, phrase := range testPhrases {
+		log.Printf("TTS warmup attempt %d/%d: %d chars", i+1, len(testPhrases), len(phrase))
+
+		if h.sendWarmupRequest(phrase) {
+			successCount++
+		}
+
+		// Small delay between requests
+		if i < len(testPhrases)-1 {
+			time.Sleep(500 * time.Millisecond)
+		}
+	}
+
+	if successCount == len(testPhrases) {
+		log.Printf("TTS model fully warmed up successfully (%d/%d requests)", successCount, len(testPhrases))
+	} else {
+		log.Printf("Warning: TTS warmup partially successful (%d/%d requests)", successCount, len(testPhrases))
+	}
+}
+
+// sendWarmupRequest sends a single warmup request to the TTS service
+func (h *LocalPipelineHandler) sendWarmupRequest(text string) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	ttsReq := TTSRequest{
+		Model:          "neutss-air-4b",
+		Input:          text,
+		Voice:          h.ttsVoice,
+		ResponseFormat: "wav",
+		Speed:          h.ttsSpeed,
+	}
+
+	jsonData, err := json.Marshal(ttsReq)
+	if err != nil {
+		log.Printf("Warning: TTS warmup request failed to marshal: %v", err)
+		return false
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", h.ttsURL+"/v1/audio/speech", bytes.NewBuffer(jsonData))
+	if err != nil {
+		log.Printf("Warning: TTS warmup request failed to create: %v", err)
+		return false
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Printf("Warning: TTS warmup request failed: %v", err)
+		return false
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		log.Printf("Warning: TTS warmup request returned status %d: %s", resp.StatusCode, string(body))
+		return false
+	}
+
+	// Read and discard the response body
+	bytesRead, err := io.Copy(io.Discard, resp.Body)
+	if err != nil {
+		log.Printf("Warning: TTS warmup failed to read response: %v", err)
+		return false
+	}
+
+	log.Printf("TTS warmup request succeeded: %d bytes", bytesRead)
+	return true
 }
 
 // StreamLLMResponse calls the local LLM and streams text deltas back to the client
@@ -186,7 +279,7 @@ func (h *LocalPipelineHandler) GenerateAndStreamAudio(ctx context.Context, text 
 
 	// Call TTS API (OpenAI-compatible)
 	ttsReq := TTSRequest{
-		Model:          "tts-1",
+		Model:          "neutss-air-4b",
 		Input:          text,
 		Voice:          h.ttsVoice,
 		ResponseFormat: "wav",

@@ -24,12 +24,8 @@ backend:
   env:
     openaiModel: "gpt-4o-realtime-preview-2024-12-17"
     port: "8080"
-    # Local pipeline configuration (set useLocalPipeline to "true" to enable)
-    useLocalPipeline: "true"
-    localLLMURL: "https://llama.k3s.local.christianmoore.me:8443/qwen2.5-7b-instruct"
-    ttsURL: "http://localhost:8000"
-    ttsVoice: "onyx"      # TTS voice (onyx, alloy, echo, fable, nova, shimmer)
-    ttsSpeed: "0.95"      # TTS speed (0.25-4.0, default 1.0)
+    # GPT Realtime mode (local pipeline disabled)
+    useLocalPipeline: "false"
 
   # Resource limits
   resources:
@@ -60,8 +56,9 @@ backend:
     failureThreshold: 3
 
   # TTS sidecar container (for local pipeline mode)
+  # DEPRECATED: Now using external TTS service at https://llama.k3s.local.christianmoore.me:8443
   tts:
-    enabled: true
+    enabled: false
     image:
       repository: ghcr.io/matatonic/openedai-speech
       tag: "latest"

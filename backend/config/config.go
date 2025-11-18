@@ -37,7 +37,7 @@ func Load() *Config {
 		TurnstileSiteKey: getEnv("TURNSTILE_SITE_KEY", ""),
 		UseLocalPipeline: getEnv("USE_LOCAL_PIPELINE", "false") == "true",
 		LocalLLMURL:      getEnv("LOCAL_LLM_URL", "https://llama.k3s.local.christianmoore.me:8443/qwen2.5-7b-instruct"),
-		TTSURL:           getEnv("TTS_URL", "http://localhost:8000"),
+		TTSURL:           getEnv("TTS_URL", "https://llama.k3s.local.christianmoore.me:8443"),
 		TTSVoice:         getEnv("TTS_VOICE", "onyx"),
 		TTSSpeed:         getEnv("TTS_SPEED", "0.95"),
 	}
