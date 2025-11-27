@@ -96,7 +96,7 @@ spec:
         - name: {{ include "resume.fullname" . }}-posthog-external
           port: 443
           scheme: https
-          serversTransport: {{ include "resume.fullname" . }}-posthog-transport
+          serversTransport: {{ .Release.Namespace }}-{{ include "resume.fullname" . }}-posthog-transport@kubernetescrd
       priority: 200
   {{- if .Values.ingress.tls.enabled }}
   tls:
