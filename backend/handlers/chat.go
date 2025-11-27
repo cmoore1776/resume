@@ -373,6 +373,14 @@ func (h *ChatHandler) HandleWebSocket(c *gin.Context) {
 						}); err != nil {
 							return
 						}
+						// Also send response_done immediately after text_done
+						// This ensures frontend exits loading state even if OpenAI closes before ResponseDoneEvent
+						if err := sendJSON(ServerMessage{
+							Type: "response_done",
+						}); err != nil {
+							return
+						}
+						log.Printf("Response done sent to client")
 
 					case openairt.ResponseOutputAudioDeltaEvent:
 						// Send audio delta to client (base64 encoded)

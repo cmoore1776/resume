@@ -19,6 +19,11 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
   const [volume, setVolume] = useState(0.8); // Default 80% volume
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
 
+  // Tracking refs for PostHog analytics
+  const messageStartTimeRef = useRef<number | null>(null);
+  const firstTextDeltaReceivedRef = useRef(false);
+  const firstAudioDeltaReceivedRef = useRef(false);
+
   // Authentication state
   const [jwtToken, setJwtToken] = useState<string | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(true);
@@ -178,11 +183,22 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
 
       switch (message.type) {
         case 'text_delta':
+          // Track first text delta (time to first token)
+          if (!firstTextDeltaReceivedRef.current && messageStartTimeRef.current) {
+            firstTextDeltaReceivedRef.current = true;
+            const timeToFirstToken = Date.now() - messageStartTimeRef.current;
+            posthog?.capture('first_text_delta', { time_to_first_token_ms: timeToFirstToken });
+          }
           // Accumulate streaming text
           setCurrentAssistantMessage((prev) => prev + message.text);
           break;
 
         case 'text_done':
+          // Track text completion
+          if (messageStartTimeRef.current) {
+            const textCompletionTime = Date.now() - messageStartTimeRef.current;
+            posthog?.capture('text_done', { text_completion_time_ms: textCompletionTime });
+          }
           // Text streaming complete, add to messages
           setCurrentAssistantMessage((currentText) => {
             if (currentText) {
@@ -198,6 +214,12 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
         case 'audio_delta':
           // Accumulate audio chunks
           if (message.audio) {
+            // Track first audio delta
+            if (!firstAudioDeltaReceivedRef.current && messageStartTimeRef.current) {
+              firstAudioDeltaReceivedRef.current = true;
+              const timeToFirstAudio = Date.now() - messageStartTimeRef.current;
+              posthog?.capture('first_audio_delta', { time_to_first_audio_ms: timeToFirstAudio });
+            }
             try {
               // Decode base64 to binary
               const binaryString = atob(message.audio);
@@ -223,19 +245,28 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
               }
             } catch (error) {
               console.error('Error processing audio delta:', error);
+              posthog?.capture('audio_processing_error', { error: String(error) });
             }
           }
           break;
 
         case 'audio_done':
+          // Track audio completion
+          if (messageStartTimeRef.current) {
+            const audioCompletionTime = Date.now() - messageStartTimeRef.current;
+            posthog?.capture('audio_done', { audio_completion_time_ms: audioCompletionTime });
+          }
           // Audio streaming complete
           onSpeakingChange(false);
           break;
 
         case 'response_done':
-          // Complete response done
+          // Complete response done - track total time
+          if (messageStartTimeRef.current) {
+            const totalResponseTime = Date.now() - messageStartTimeRef.current;
+            posthog?.capture('response_done', { total_response_time_ms: totalResponseTime });
+          }
           setIsLoading(false);
-          posthog?.capture('chat_response_received');
           break;
 
         case 'error':
@@ -365,6 +396,11 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
 
     // Clear any existing audio buffers
     audioBuffersRef.current = [];
+
+    // Reset tracking refs for PostHog analytics
+    messageStartTimeRef.current = Date.now();
+    firstTextDeltaReceivedRef.current = false;
+    firstAudioDeltaReceivedRef.current = false;
 
     // Send message via WebSocket
     wsRef.current.send(
