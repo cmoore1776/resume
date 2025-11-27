@@ -40,6 +40,17 @@ spec:
     customRequestHeaders:
       Host: {{ .Values.posthog.proxy.host }}
 ---
+# ServersTransport for TLS to PostHog (sets correct SNI)
+apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata:
+  name: {{ include "resume.fullname" . }}-posthog-transport
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "resume.labels" . | nindent 4 }}
+spec:
+  serverName: {{ .Values.posthog.proxy.host }}
+---
 # PostHog proxy IngressRoute
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
@@ -62,6 +73,7 @@ spec:
           port: 443
           scheme: https
           passHostHeader: false
+          serversTransport: {{ include "resume.fullname" . }}-posthog-transport
       priority: 200
   {{- if .Values.ingress.tls.enabled }}
   tls:
