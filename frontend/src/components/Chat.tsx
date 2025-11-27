@@ -166,10 +166,13 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
     // Don't connect until we have a JWT token
     if (!jwtToken) return;
 
-    const wsUrl = import.meta.env.VITE_WS_URL || 'wss://christianmoore.me/ws/chat';
+    const baseWsUrl = import.meta.env.VITE_WS_URL || 'wss://christianmoore.me/ws/chat';
 
-    // Send JWT token via Sec-WebSocket-Protocol header (WebSocket auth method)
-    const ws = new WebSocket(wsUrl, jwtToken);
+    // Send JWT token via query parameter for Cloudflare compatibility
+    // Note: Sec-WebSocket-Protocol doesn't allow '.' characters (invalid per RFC 6455)
+    // which breaks JWT tokens through strict proxies like Cloudflare
+    const wsUrl = `${baseWsUrl}?token=${encodeURIComponent(jwtToken)}`;
+    const ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
       // WebSocket connection established
