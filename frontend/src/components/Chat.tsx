@@ -39,6 +39,8 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const volumeControlRef = useRef<HTMLDivElement>(null);
   const volumeRef = useRef(0.8); // Ref to track current volume for audio playback
+  const onSpeakingChangeRef = useRef(onSpeakingChange); // Ref to avoid useEffect dependency issues
+  onSpeakingChangeRef.current = onSpeakingChange;
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -122,7 +124,7 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
     }
 
     isPlayingAudioRef.current = true;
-    onSpeakingChange(true);
+    onSpeakingChangeRef.current(true);
 
     try {
       while (audioBuffersRef.current.length > 0) {
@@ -156,10 +158,10 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
     } finally {
       isPlayingAudioRef.current = false;
       if (audioBuffersRef.current.length === 0) {
-        onSpeakingChange(false);
+        onSpeakingChangeRef.current(false);
       }
     }
-  }, [onSpeakingChange]);
+  }, []); // No dependencies - uses refs for stability
 
   // Initialize WebSocket connection (only when authenticated)
   useEffect(() => {
@@ -260,7 +262,7 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
             posthog?.capture('audio_done', { audio_completion_time_ms: audioCompletionTime });
           }
           // Audio streaming complete
-          onSpeakingChange(false);
+          onSpeakingChangeRef.current(false);
           break;
 
         case 'response_done':
@@ -349,7 +351,7 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
     return () => {
       ws.close();
     };
-  }, [jwtToken, playAudioBuffers, onSpeakingChange]); // Reconnect when JWT token changes
+  }, [jwtToken, playAudioBuffers]); // Only reconnect when JWT changes - callbacks use refs
 
   const handleReconnect = () => {
     // Try to refresh JWT token and reconnect

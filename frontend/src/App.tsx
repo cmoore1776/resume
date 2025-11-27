@@ -1,8 +1,12 @@
+import { useCallback } from 'react';
 import Chat from './components/Chat';
 import Resume from './components/Resume';
 import './App.css';
 
 function App() {
+  // Memoize callback to prevent WebSocket reconnection on every render
+  const handleSpeakingChange = useCallback(() => {}, []);
+
   return (
     <div className="app">
       <div className="resume-section">
@@ -10,7 +14,7 @@ function App() {
       </div>
 
       <div className="chat-section">
-        <Chat onSpeakingChange={() => {}} />
+        <Chat onSpeakingChange={handleSpeakingChange} />
       </div>
     </div>
   );
