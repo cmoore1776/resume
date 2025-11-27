@@ -62,19 +62,6 @@ spec:
     customRequestHeaders:
       Host: {{ .Values.posthog.proxy.host }}
 ---
-# ServersTransport for TLS to PostHog
-apiVersion: traefik.io/v1alpha1
-kind: ServersTransport
-metadata:
-  name: {{ include "resume.fullname" . }}-posthog-transport
-  namespace: {{ .Release.Namespace }}
-  labels:
-    {{- include "resume.labels" . | nindent 4 }}
-spec:
-  serverName: {{ .Values.posthog.proxy.host }}
-  # Skip TLS verification for external service (PostHog uses valid certs, but Traefik may lack CA bundle)
-  insecureSkipVerify: true
----
 # PostHog proxy IngressRoute
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
@@ -96,7 +83,7 @@ spec:
         - name: {{ include "resume.fullname" . }}-posthog-external
           port: 443
           scheme: https
-          serversTransport: {{ .Release.Namespace }}-{{ include "resume.fullname" . }}-posthog-transport@kubernetescrd
+          passHostHeader: false
       priority: 200
   {{- if .Values.ingress.tls.enabled }}
   tls:
