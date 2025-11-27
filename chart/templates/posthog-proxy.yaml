@@ -1,0 +1,79 @@
+{{- if .Values.posthog.proxy.enabled }}
+---
+# PostHog External Service
+# Routes analytics requests through our domain to bypass content blockers
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "resume.fullname" . }}-posthog-external
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "resume.labels" . | nindent 4 }}
+spec:
+  type: ExternalName
+  externalName: {{ .Values.posthog.proxy.host }}
+---
+# Strip /ingest prefix middleware
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: {{ include "resume.fullname" . }}-posthog-stripprefix
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "resume.labels" . | nindent 4 }}
+spec:
+  stripPrefix:
+    prefixes:
+      - /ingest
+---
+# Set Host header for PostHog
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: {{ include "resume.fullname" . }}-posthog-headers
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "resume.labels" . | nindent 4 }}
+spec:
+  headers:
+    customRequestHeaders:
+      Host: {{ .Values.posthog.proxy.host }}
+---
+# ServersTransport for TLS to PostHog
+apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata:
+  name: {{ include "resume.fullname" . }}-posthog-transport
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "resume.labels" . | nindent 4 }}
+spec:
+  serverName: {{ .Values.posthog.proxy.host }}
+---
+# PostHog proxy IngressRoute
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: {{ include "resume.fullname" . }}-posthog-proxy
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "resume.labels" . | nindent 4 }}
+spec:
+  entryPoints:
+    - {{ .Values.ingress.entryPoint | default "websecure" }}
+  routes:
+    - match: Host(`{{ .Values.ingress.frontendHost }}`) && PathPrefix(`/ingest`)
+      kind: Rule
+      middlewares:
+        - name: {{ include "resume.fullname" . }}-posthog-stripprefix
+        - name: {{ include "resume.fullname" . }}-posthog-headers
+      services:
+        - name: {{ include "resume.fullname" . }}-posthog-external
+          port: 443
+          serversTransport: {{ include "resume.fullname" . }}-posthog-transport
+      priority: 200
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    secretName: {{ .Values.ingress.tls.frontendSecretName }}
+  {{- end }}
+{{- end }}

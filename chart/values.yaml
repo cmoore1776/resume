@@ -79,7 +79,7 @@ backend:
 frontend:
   image:
     repository: registry.local.k3s.cmoore.io:8443/resume/frontend
-    tag: "v1.0.30"
+    tag: "v1.0.31"
     pullPolicy: IfNotPresent
 
   replicaCount: 1
@@ -96,8 +96,9 @@ frontend:
     # API URL (optional, for future REST endpoints)
     apiUrl: "https://christianmoore.me"
     # PostHog analytics (optional)
+    # Using proxied endpoint to bypass content blockers
     posthogKey: "phc_8VCGVxP0ckbL20XuspX70VjOfqxjg40O6IdOMaPS0A5"
-    posthogHost: "https://us.i.posthog.com"
+    posthogHost: "https://christianmoore.me/ingest"
 
   # Resource limits
   resources:
@@ -160,6 +161,14 @@ ingress:
     frontendSecretName: resume-frontend-tls
     backendSecretName: resume-backend-tls
   certIssuer: letsencrypt-cloudflare  # DNS-01 challenge for external services
+
+# PostHog analytics proxy configuration
+# Proxies PostHog requests through our domain to bypass content blockers
+posthog:
+  proxy:
+    enabled: true
+    # PostHog ingestion host (use region-specific proxy host)
+    host: us-proxy-direct.i.posthog.com
 
 # Rate limiting configuration
 rateLimit:

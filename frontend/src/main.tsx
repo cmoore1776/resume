@@ -14,6 +14,8 @@ if (posthogKey && posthogHost) {
     capture_pageview: true,
     capture_pageleave: true,
     autocapture: true,
+    // Exception autocapture - captures uncaught errors and unhandled promise rejections
+    capture_exceptions: true,
     // Session replay
     disable_session_recording: false,
     session_recording: {
