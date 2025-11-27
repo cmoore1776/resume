@@ -246,18 +246,15 @@ func (h *ChatHandler) HandleWebSocket(c *gin.Context) {
 		realtimeConn = conn
 		log.Printf("Successfully connected to OpenAI Realtime API")
 
-		// Configure session with audio modality (includes text transcript automatically)
+		// Configure session with text-only modality
+		// Note: Audio modality was causing connection drops due to high bandwidth (120KB+/sec)
+		// through Cloudflare proxy. Using text-only for stability.
 		sessionUpdate := openairt.SessionUpdateEvent{
 			Session: openairt.SessionUnion{
 				Realtime: &openairt.RealtimeSession{
 					Instructions: h.systemPrompt,
-					Audio: &openairt.RealtimeSessionAudio{
-						Output: &openairt.SessionAudioOutput{
-							Voice: openairt.VoiceCedar, // Masculine voice
-						},
-					},
 					OutputModalities: []openairt.Modality{
-						openairt.ModalityAudio, // This includes both audio and text transcript
+						openairt.ModalityText, // Text only - stable through proxies
 					},
 				},
 			},
@@ -369,8 +366,8 @@ func (h *ChatHandler) HandleWebSocket(c *gin.Context) {
 
 					// Handle different event types
 					switch e := event.(type) {
-					case openairt.ResponseOutputAudioTranscriptDeltaEvent:
-						// Send text delta to client (from audio transcript)
+					case openairt.ResponseOutputTextDeltaEvent:
+						// Send text delta to client (text-only mode)
 						log.Printf("Assistant response delta: %s", e.Delta)
 						if err := sendJSON(ServerMessage{
 							Type: "text_delta",
@@ -379,7 +376,7 @@ func (h *ChatHandler) HandleWebSocket(c *gin.Context) {
 							return
 						}
 
-					case openairt.ResponseOutputAudioTranscriptDoneEvent:
+					case openairt.ResponseOutputTextDoneEvent:
 						// Text is complete
 						log.Printf("Assistant response completed")
 						if err := sendJSON(ServerMessage{
@@ -389,6 +386,32 @@ func (h *ChatHandler) HandleWebSocket(c *gin.Context) {
 						}
 						// Also send response_done immediately after text_done
 						// This ensures frontend exits loading state even if OpenAI closes before ResponseDoneEvent
+						if err := sendJSON(ServerMessage{
+							Type: "response_done",
+						}); err != nil {
+							return
+						}
+						log.Printf("Response done sent to client")
+
+					// Legacy audio mode handlers (kept for backwards compatibility if audio is re-enabled)
+					case openairt.ResponseOutputAudioTranscriptDeltaEvent:
+						// Send text delta to client (from audio transcript)
+						log.Printf("Assistant response delta (audio mode): %s", e.Delta)
+						if err := sendJSON(ServerMessage{
+							Type: "text_delta",
+							Text: e.Delta,
+						}); err != nil {
+							return
+						}
+
+					case openairt.ResponseOutputAudioTranscriptDoneEvent:
+						// Text is complete (audio mode)
+						log.Printf("Assistant response completed (audio mode)")
+						if err := sendJSON(ServerMessage{
+							Type: "text_done",
+						}); err != nil {
+							return
+						}
 						if err := sendJSON(ServerMessage{
 							Type: "response_done",
 						}); err != nil {
