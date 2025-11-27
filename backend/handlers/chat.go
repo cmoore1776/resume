@@ -206,9 +206,22 @@ func (h *ChatHandler) HandleWebSocket(c *gin.Context) {
 
 	ctx := context.Background()
 
-	// OpenAI Realtime connection (only if not using local pipeline)
+	// OpenAI Realtime connection - lazy initialized on first message
 	var realtimeConn *openairt.Conn
-	if !h.useLocalPipeline {
+	var realtimeConnMutex sync.Mutex
+	var openaiReaderRunning bool
+
+	// Helper function to connect/reconnect to OpenAI Realtime API
+	connectToOpenAI := func() error {
+		realtimeConnMutex.Lock()
+		defer realtimeConnMutex.Unlock()
+
+		// Close existing connection if any
+		if realtimeConn != nil {
+			realtimeConn.Close()
+			realtimeConn = nil
+		}
+
 		// Create OpenAI Realtime client
 		client := openairt.NewClient(h.apiKey)
 
@@ -217,14 +230,9 @@ func (h *ChatHandler) HandleWebSocket(c *gin.Context) {
 		conn, err := client.Connect(ctx, openairt.WithModel(h.model))
 		if err != nil {
 			log.Printf("Failed to connect to OpenAI Realtime API: %v", err)
-			clientWS.WriteJSON(ServerMessage{
-				Type:  "error",
-				Error: "Failed to connect to AI service",
-			})
-			return
+			return err
 		}
 		realtimeConn = conn
-		defer realtimeConn.Close()
 		log.Printf("Successfully connected to OpenAI Realtime API")
 
 		// Configure session with audio modality (includes text transcript automatically)
@@ -247,14 +255,22 @@ func (h *ChatHandler) HandleWebSocket(c *gin.Context) {
 		log.Printf("Configuring session with system prompt and modalities...")
 		if err := realtimeConn.SendMessage(ctx, sessionUpdate); err != nil {
 			log.Printf("Failed to configure session: %v", err)
-			clientWS.WriteJSON(ServerMessage{
-				Type:  "error",
-				Error: "Failed to configure AI session",
-			})
-			return
+			realtimeConn.Close()
+			realtimeConn = nil
+			return err
 		}
 		log.Printf("Session configured successfully")
+		return nil
 	}
+
+	// Cleanup OpenAI connection on exit
+	defer func() {
+		realtimeConnMutex.Lock()
+		if realtimeConn != nil {
+			realtimeConn.Close()
+		}
+		realtimeConnMutex.Unlock()
+	}()
 
 	// Channel for handling errors and cleanup
 	done := make(chan struct{})
@@ -294,14 +310,19 @@ func (h *ChatHandler) HandleWebSocket(c *gin.Context) {
 		return err
 	}
 
-	// Handle messages from OpenAI Realtime API (only if not using local pipeline)
-	if !h.useLocalPipeline {
+	// Function to start OpenAI reader goroutine
+	startOpenAIReader := func() {
+		if openaiReaderRunning {
+			return
+		}
+		openaiReaderRunning = true
+
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {
 					log.Printf("Recovered from panic in OpenAI handler: %v", r)
 				}
-				doneOnce.Do(func() { close(done) })
+				openaiReaderRunning = false
 			}()
 
 			for {
@@ -309,13 +330,26 @@ func (h *ChatHandler) HandleWebSocket(c *gin.Context) {
 				case <-done:
 					return
 				default:
-					event, err := realtimeConn.ReadMessage(ctx)
+					realtimeConnMutex.Lock()
+					conn := realtimeConn
+					realtimeConnMutex.Unlock()
+
+					if conn == nil {
+						log.Printf("OpenAI connection is nil, reader exiting")
+						return
+					}
+
+					event, err := conn.ReadMessage(ctx)
 					if err != nil {
 						log.Printf("Error receiving from OpenAI: %v", err)
-						sendJSON(ServerMessage{
-							Type:  "error",
-							Error: "Connection to AI service lost",
-						})
+						// Mark connection as closed so next message will reconnect
+						realtimeConnMutex.Lock()
+						if realtimeConn != nil {
+							realtimeConn.Close()
+							realtimeConn = nil
+						}
+						realtimeConnMutex.Unlock()
+						// Don't send error to client - they'll reconnect on next message
 						return
 					}
 
@@ -450,6 +484,24 @@ func (h *ChatHandler) HandleWebSocket(c *gin.Context) {
 				}
 			} else {
 				// Use OpenAI Realtime API
+				// Lazy connect: establish connection on first message or reconnect if lost
+				realtimeConnMutex.Lock()
+				needsConnect := realtimeConn == nil
+				realtimeConnMutex.Unlock()
+
+				if needsConnect {
+					log.Printf("Establishing OpenAI connection for message...")
+					if err := connectToOpenAI(); err != nil {
+						sendJSON(ServerMessage{
+							Type:  "error",
+							Error: "Failed to connect to AI service",
+						})
+						continue
+					}
+					// Start the reader goroutine for this new connection
+					startOpenAIReader()
+				}
+
 				// Create conversation item with user message (use sanitized input)
 				item := openairt.ConversationItemCreateEvent{
 					Item: openairt.MessageItemUnion{
@@ -464,11 +516,30 @@ func (h *ChatHandler) HandleWebSocket(c *gin.Context) {
 					},
 				}
 
-				if err := realtimeConn.SendMessage(ctx, item); err != nil {
-					log.Printf("Failed to send message: %v", err)
+				realtimeConnMutex.Lock()
+				conn := realtimeConn
+				realtimeConnMutex.Unlock()
+
+				if conn == nil {
 					sendJSON(ServerMessage{
 						Type:  "error",
-						Error: "Failed to send message",
+						Error: "AI service connection lost, please try again",
+					})
+					continue
+				}
+
+				if err := conn.SendMessage(ctx, item); err != nil {
+					log.Printf("Failed to send message: %v", err)
+					// Connection might be dead, clear it so next message reconnects
+					realtimeConnMutex.Lock()
+					if realtimeConn != nil {
+						realtimeConn.Close()
+						realtimeConn = nil
+					}
+					realtimeConnMutex.Unlock()
+					sendJSON(ServerMessage{
+						Type:  "error",
+						Error: "Failed to send message, please try again",
 					})
 					continue
 				}
@@ -476,11 +547,18 @@ func (h *ChatHandler) HandleWebSocket(c *gin.Context) {
 				// Request response
 				responseCreate := openairt.ResponseCreateEvent{}
 
-				if err := realtimeConn.SendMessage(ctx, responseCreate); err != nil {
+				if err := conn.SendMessage(ctx, responseCreate); err != nil {
 					log.Printf("Failed to request response: %v", err)
+					// Connection might be dead, clear it so next message reconnects
+					realtimeConnMutex.Lock()
+					if realtimeConn != nil {
+						realtimeConn.Close()
+						realtimeConn = nil
+					}
+					realtimeConnMutex.Unlock()
 					sendJSON(ServerMessage{
 						Type:  "error",
-						Error: "Failed to request response",
+						Error: "Failed to request response, please try again",
 					})
 					continue
 				}
