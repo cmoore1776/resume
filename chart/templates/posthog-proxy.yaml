@@ -50,6 +50,7 @@ metadata:
     {{- include "resume.labels" . | nindent 4 }}
 spec:
   serverName: {{ .Values.posthog.proxy.host }}
+  insecureSkipVerify: true
 ---
 # PostHog proxy IngressRoute
 apiVersion: traefik.io/v1alpha1
