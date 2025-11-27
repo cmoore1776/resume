@@ -164,19 +164,12 @@ ingress:
 
 # PostHog analytics proxy configuration
 # Proxies PostHog requests through our domain to bypass content blockers
+# Requires Traefik arg: --providers.kubernetescrd.allowexternalnameservices=true
 posthog:
   proxy:
     enabled: true
     # PostHog ingestion host (use region-specific proxy host)
     host: us-proxy-direct.i.posthog.com
-    # PostHog IPs (required because Traefik disables ExternalName services by default)
-    # Update these if PostHog changes their infrastructure
-    # Run: dig +short us-proxy-direct.i.posthog.com
-    ips:
-      - "54.210.94.226"
-      - "52.71.143.103"
-      - "3.215.213.129"
-      - "18.235.122.102"
 
 # Rate limiting configuration
 rateLimit:
