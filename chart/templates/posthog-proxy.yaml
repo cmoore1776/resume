@@ -70,6 +70,7 @@ spec:
       services:
         - name: {{ include "resume.fullname" . }}-posthog-external
           port: 443
+          scheme: https
           serversTransport: {{ include "resume.fullname" . }}-posthog-transport
       priority: 200
   {{- if .Values.ingress.tls.enabled }}
