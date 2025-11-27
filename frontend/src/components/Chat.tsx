@@ -274,6 +274,14 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
           setIsLoading(false);
           break;
 
+        case 'heartbeat':
+          // Server heartbeat to keep connection alive through Cloudflare
+          // Respond with heartbeat_ack to confirm connection is alive
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'heartbeat_ack' }));
+          }
+          break;
+
         case 'error':
           console.error('Server error:', message.error);
           posthog?.capture('chat_error', { error: message.error });

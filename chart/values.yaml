@@ -4,7 +4,7 @@
 backend:
   image:
     repository: registry.local.k3s.cmoore.io:8443/resume/backend
-    tag: "v1.0.31"
+    tag: "v1.0.32"
     pullPolicy: IfNotPresent
 
   replicaCount: 1
@@ -79,7 +79,7 @@ backend:
 frontend:
   image:
     repository: registry.local.k3s.cmoore.io:8443/resume/frontend
-    tag: "v1.0.35"
+    tag: "v1.0.36"
     pullPolicy: IfNotPresent
 
   replicaCount: 1

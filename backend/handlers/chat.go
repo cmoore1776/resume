@@ -288,22 +288,25 @@ func (h *ChatHandler) HandleWebSocket(c *gin.Context) {
 	var doneOnce sync.Once
 	var wsMutex sync.Mutex // Protect WebSocket writes
 
-	// Periodic ping to keep connection alive and detect dead connections
+	// Periodic heartbeat to keep connection alive through Cloudflare
+	// Note: Using application-level JSON heartbeats instead of WebSocket ping frames
+	// because Cloudflare may not properly forward WebSocket control frames
 	go func() {
-		ticker := time.NewTicker(PingInterval)
+		ticker := time.NewTicker(30 * time.Second) // More frequent for Cloudflare's 100s timeout
 		defer ticker.Stop()
 		for {
 			select {
 			case <-ticker.C:
 				wsMutex.Lock()
-				err := clientWS.WriteControl(websocket.PingMessage, []byte{}, time.Now().Add(10*time.Second))
+				err := clientWS.WriteJSON(ServerMessage{Type: "heartbeat"})
 				wsMutex.Unlock()
 				if err != nil {
-					log.Printf("Failed to send ping: %v", err)
+					log.Printf("Failed to send heartbeat: %v", err)
 					doneOnce.Do(func() { close(done) })
 					return
 				}
-				log.Printf("Ping sent to keep connection alive")
+				// Reset write deadline after successful heartbeat
+				clientWS.SetWriteDeadline(time.Now().Add(ConnectionTimeout))
 			case <-done:
 				return
 			}
