@@ -107,16 +107,21 @@ type ServerMessage struct {
 }
 
 func (h *ChatHandler) HandleWebSocket(c *gin.Context) {
-	// Verify JWT token from Authorization header or Sec-WebSocket-Protocol
+	// Verify JWT token from Authorization header, Sec-WebSocket-Protocol, or query param
 	var tokenString string
+	var wsProtocol string // Store protocol to echo back in response
 
 	// Try Authorization header first
 	authHeader := c.GetHeader("Authorization")
 	if authHeader != "" && len(authHeader) > 7 && authHeader[:7] == "Bearer " {
 		tokenString = authHeader[7:]
-	} else {
-		// Fall back to Sec-WebSocket-Protocol for WebSocket auth
-		tokenString = c.GetHeader("Sec-WebSocket-Protocol")
+	} else if protocol := c.GetHeader("Sec-WebSocket-Protocol"); protocol != "" {
+		// Sec-WebSocket-Protocol for WebSocket auth (browser API)
+		tokenString = protocol
+		wsProtocol = protocol // Must echo this back in upgrade response
+	} else if queryToken := c.Query("token"); queryToken != "" {
+		// Query parameter fallback for proxy compatibility
+		tokenString = queryToken
 	}
 
 	// Verify JWT token
@@ -163,7 +168,13 @@ func (h *ChatHandler) HandleWebSocket(c *gin.Context) {
 	log.Printf("New WebSocket connection from IP %s (%d/%d concurrent)", clientIP, currentConnections+1, MaxConnectionsPerIP)
 
 	// Upgrade connection to WebSocket
-	clientWS, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	// Must echo back Sec-WebSocket-Protocol if client sent it, or browser closes with 1006
+	var responseHeader http.Header
+	if wsProtocol != "" {
+		responseHeader = http.Header{}
+		responseHeader.Set("Sec-WebSocket-Protocol", wsProtocol)
+	}
+	clientWS, err := upgrader.Upgrade(c.Writer, c.Request, responseHeader)
 	if err != nil {
 		log.Printf("Failed to upgrade connection: %v", err)
 		return
