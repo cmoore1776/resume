@@ -246,15 +246,20 @@ func (h *ChatHandler) HandleWebSocket(c *gin.Context) {
 		realtimeConn = conn
 		log.Printf("Successfully connected to OpenAI Realtime API")
 
-		// Configure session with text-only modality
-		// Note: Audio modality was causing connection drops due to high bandwidth (120KB+/sec)
-		// through Cloudflare proxy. Using text-only for stability.
+		// Configure session with audio modality (includes text transcript)
+		// Audio streams through Cloudflare Tunnel which handles bandwidth better than HTTP proxy
 		sessionUpdate := openairt.SessionUpdateEvent{
 			Session: openairt.SessionUnion{
 				Realtime: &openairt.RealtimeSession{
 					Instructions: h.systemPrompt,
+					Audio: &openairt.RealtimeSessionAudio{
+						Output: &openairt.SessionAudioOutput{
+							Voice: openairt.VoiceCedar, // Masculine voice
+							// Note: Do NOT set Format field - causes audio distortion
+						},
+					},
 					OutputModalities: []openairt.Modality{
-						openairt.ModalityText, // Text only - stable through proxies
+						openairt.ModalityAudio, // Includes both audio and text transcript
 					},
 				},
 			},
