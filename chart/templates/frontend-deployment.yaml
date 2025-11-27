@@ -42,6 +42,14 @@ spec:
               value: {{ .Values.frontend.env.wsUrl | quote }}
             - name: VITE_API_URL
               value: {{ .Values.frontend.env.apiUrl | quote }}
+            {{- if .Values.frontend.env.posthogKey }}
+            - name: VITE_PUBLIC_POSTHOG_KEY
+              value: {{ .Values.frontend.env.posthogKey | quote }}
+            {{- end }}
+            {{- if .Values.frontend.env.posthogHost }}
+            - name: VITE_PUBLIC_POSTHOG_HOST
+              value: {{ .Values.frontend.env.posthogHost | quote }}
+            {{- end }}
           ports:
             - name: http
               containerPort: {{ .Values.frontend.service.targetPort }}

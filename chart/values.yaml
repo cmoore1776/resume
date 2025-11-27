@@ -79,7 +79,7 @@ backend:
 frontend:
   image:
     repository: registry.local.k3s.cmoore.io:8443/resume/frontend
-    tag: "v1.0.29"
+    tag: "v1.0.30"
     pullPolicy: IfNotPresent
 
   replicaCount: 1
@@ -95,6 +95,9 @@ frontend:
     wsUrl: "wss://christianmoore.me/ws/chat"
     # API URL (optional, for future REST endpoints)
     apiUrl: "https://christianmoore.me"
+    # PostHog analytics (optional)
+    posthogKey: "phc_8VCGVxP0ckbL20XuspX70VjOfqxjg40O6IdOMaPS0A5"
+    posthogHost: "https://us.i.posthog.com"
 
   # Resource limits
   resources:

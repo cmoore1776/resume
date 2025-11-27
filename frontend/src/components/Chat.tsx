@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import * as Slider from '@radix-ui/react-slider';
+import { posthog } from '../main';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -169,6 +170,7 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
       // WebSocket connection established
       setIsConnected(true);
       setShowReconnectPrompt(false);
+      posthog?.capture('websocket_connected');
     };
 
     ws.onmessage = (event) => {
@@ -233,10 +235,12 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
         case 'response_done':
           // Complete response done
           setIsLoading(false);
+          posthog?.capture('chat_response_received');
           break;
 
         case 'error':
           console.error('Server error:', message.error);
+          posthog?.capture('chat_error', { error: message.error });
           setMessages((prev) => [
             ...prev,
             {
@@ -252,11 +256,17 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
 
     ws.onerror = (error) => {
       console.error('WebSocket error:', error);
+      posthog?.capture('websocket_error');
     };
 
     ws.onclose = (event) => {
       console.log('WebSocket closed with code:', event.code);
       setIsConnected(false);
+      posthog?.capture('websocket_disconnected', {
+        code: event.code,
+        wasClean: event.wasClean,
+        reason: event.reason || 'none'
+      });
 
       // If connection failed to establish (likely auth error), refresh JWT
       // Code 1006 means abnormal closure (connection failed before opening)
@@ -363,6 +373,7 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
         message: userMessage,
       })
     );
+    posthog?.capture('chat_message_sent', { message_length: userMessage.length });
   };
 
   return (
