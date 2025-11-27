@@ -586,6 +586,12 @@ func (h *ChatHandler) HandleWebSocket(c *gin.Context) {
 				}
 			}
 
+		case "heartbeat_ack":
+			// Client acknowledging heartbeat - connection is alive
+			// Reset read deadline to keep connection open
+			clientWS.SetReadDeadline(time.Now().Add(ConnectionTimeout))
+			continue
+
 		default:
 			// Reject unknown message types
 			log.Printf("Invalid message type received: %s", msg.Type)
