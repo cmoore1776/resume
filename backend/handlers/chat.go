@@ -398,10 +398,12 @@ func (h *ChatHandler) HandleWebSocket(c *gin.Context) {
 
 					case openairt.ResponseOutputAudioDeltaEvent:
 						// Send audio delta to client (base64 encoded)
+						log.Printf("Sending audio_delta: %d bytes", len(e.Delta))
 						if err := sendJSON(ServerMessage{
 							Type:  "audio_delta",
 							Audio: e.Delta,
 						}); err != nil {
+							log.Printf("Failed to send audio_delta: %v", err)
 							return
 						}
 
@@ -439,8 +441,10 @@ func (h *ChatHandler) HandleWebSocket(c *gin.Context) {
 		var msg ClientMessage
 		err := clientWS.ReadJSON(&msg)
 		if err != nil {
+			// Log ALL errors to understand disconnection causes
+			log.Printf("ReadJSON error (closing connection): %v", err)
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("WebSocket error: %v", err)
+				log.Printf("  -> Unexpected close error detected")
 			}
 			break
 		}
