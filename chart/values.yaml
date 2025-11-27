@@ -156,6 +156,9 @@ ingress:
   backendHost: backend.christianmoore.me
   backendEnabled: true  # Set to false to disable separate backend domain
   entryPoint: websecure  # Standard HTTPS on port 443 (externally exposed)
+  # Enable Cloudflare Tunnel mode - routes traffic on HTTP (web) entrypoint
+  # since Cloudflare handles TLS termination externally
+  cloudflareTunnel: true
   tls:
     enabled: true
     frontendSecretName: resume-frontend-tls
