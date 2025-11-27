@@ -1,7 +1,8 @@
 {{- if .Values.posthog.proxy.enabled }}
 ---
-# PostHog External Service
+# PostHog Service (headless, using manual Endpoints)
 # Routes analytics requests through our domain to bypass content blockers
+# Note: Can't use ExternalName as Traefik has it disabled by default
 apiVersion: v1
 kind: Service
 metadata:
@@ -10,8 +11,30 @@ metadata:
   labels:
     {{- include "resume.labels" . | nindent 4 }}
 spec:
-  type: ExternalName
-  externalName: {{ .Values.posthog.proxy.host }}
+  type: ClusterIP
+  clusterIP: None
+  ports:
+    - name: https
+      port: 443
+      targetPort: 443
+---
+# Manual Endpoints pointing to PostHog IPs
+# These IPs are for us-proxy-direct.i.posthog.com (resolve dynamically if needed)
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: {{ include "resume.fullname" . }}-posthog-external
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "resume.labels" . | nindent 4 }}
+subsets:
+  - addresses:
+      {{- range .Values.posthog.proxy.ips }}
+      - ip: {{ . | quote }}
+      {{- end }}
+    ports:
+      - name: https
+        port: 443
 ---
 # Strip /ingest prefix middleware
 apiVersion: traefik.io/v1alpha1
