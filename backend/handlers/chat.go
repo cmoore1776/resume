@@ -54,8 +54,7 @@ var upgrader = websocket.Upgrader{
 		origin := r.Header.Get("Origin")
 		return origin == "http://localhost:5173" ||
 			origin == "http://localhost:3000" ||
-			origin == "https://christianmoore.me" ||
-			origin == "https://resume.k3s.christianmoore.me"
+			origin == "https://christianmoore.me"
 	},
 }
 

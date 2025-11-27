@@ -2,8 +2,8 @@
 set -e
 
 # Default values if not provided
-VITE_WS_URL=${VITE_WS_URL:-wss://resume.k3s.christianmoore.me/ws/chat}
-VITE_API_URL=${VITE_API_URL:-https://resume.k3s.christianmoore.me}
+VITE_WS_URL=${VITE_WS_URL:-wss://christianmoore.me/ws/chat}
+VITE_API_URL=${VITE_API_URL:-https://christianmoore.me}
 
 echo "Configuring frontend with:"
 echo "  VITE_WS_URL: $VITE_WS_URL"

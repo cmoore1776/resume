@@ -70,7 +70,7 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
     }
 
     // Request a new JWT token
-    const apiUrl = import.meta.env.VITE_API_URL || 'https://resume.k3s.christianmoore.me';
+    const apiUrl = import.meta.env.VITE_API_URL || 'https://christianmoore.me';
 
     fetch(`${apiUrl}/api/token`, {
       method: 'POST',
@@ -160,7 +160,7 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
     // Don't connect until we have a JWT token
     if (!jwtToken) return;
 
-    const wsUrl = import.meta.env.VITE_WS_URL || 'wss://resume.k3s.christianmoore.me/ws/chat';
+    const wsUrl = import.meta.env.VITE_WS_URL || 'wss://christianmoore.me/ws/chat';
 
     // Send JWT token via Sec-WebSocket-Protocol header (WebSocket auth method)
     const ws = new WebSocket(wsUrl, jwtToken);
@@ -267,7 +267,7 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
         setIsAuthenticating(true);
 
         // Fetch new JWT token
-        const apiUrl = import.meta.env.VITE_API_URL || 'https://resume.k3s.christianmoore.me';
+        const apiUrl = import.meta.env.VITE_API_URL || 'https://christianmoore.me';
         fetch(`${apiUrl}/api/token`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -313,7 +313,7 @@ export default function Chat({ onSpeakingChange }: ChatProps) {
     setIsAuthenticating(true);
     localStorage.removeItem('jwt_token');
 
-    const apiUrl = import.meta.env.VITE_API_URL || 'https://resume.k3s.christianmoore.me';
+    const apiUrl = import.meta.env.VITE_API_URL || 'https://christianmoore.me';
     fetch(`${apiUrl}/api/token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

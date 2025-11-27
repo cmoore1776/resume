@@ -1,6 +1,6 @@
 # Claude Development Guide
 
-**Live Site**: https://resume.k3s.christianmoore.me
+**Live Site**: https://christianmoore.me
 
 ## Tech Stack
 - **Backend**: Go 1.23, Gin, Gorilla WebSocket, OpenAI Realtime API or Local LLM+TTS
@@ -23,7 +23,7 @@ Both must allow same origins or WebSocket fails with 403:
 1. `backend/main.go` - CORS middleware
 2. `backend/handlers/chat.go` - WebSocket upgrader CheckOrigin
 
-Allowed: `http://localhost:5173`, `http://localhost:3000`, `https://christianmoore.me`, `https://resume.k3s.christianmoore.me`
+Allowed: `http://localhost:5173`, `http://localhost:3000`, `https://christianmoore.me`
 
 ### Authentication
 - WebSocket requires JWT token via `Authorization: Bearer <token>` or `Sec-WebSocket-Protocol` header
@@ -115,4 +115,4 @@ pip install pre-commit && pre-commit install
 ```
 
 ### Registry
-`registry.k3s.local.christianmoore.me:8443` (port required)
+`registry.local.k3s.cmoore.io:8443` (port required)

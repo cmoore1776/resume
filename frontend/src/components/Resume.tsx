@@ -180,7 +180,7 @@ export default function Resume() {
           <div className="project">
             <p>
               <strong>Real-time AI Avatar:</strong> Golang backend, WebSocket streaming, realtime voice synthesis,
-              and a React frontend. <a href="https://resume.k3s.christianmoore.me" target="_blank" rel="noopener noreferrer">Live</a> • <a href="https://github.com/cmoore1776/resume" target="_blank" rel="noopener noreferrer">Source</a>
+              and a React frontend. <a href="https://christianmoore.me" target="_blank" rel="noopener noreferrer">Live</a> • <a href="https://github.com/cmoore1776/resume" target="_blank" rel="noopener noreferrer">Source</a>
             </p>
           </div>
         </section>

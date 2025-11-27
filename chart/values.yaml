@@ -3,8 +3,8 @@
 # Backend configuration
 backend:
   image:
-    repository: registry.k3s.local.christianmoore.me:8443/resume/backend
-    tag: "v1.0.26"
+    repository: registry.local.k3s.cmoore.io:8443/resume/backend
+    tag: "v1.0.28"
     pullPolicy: IfNotPresent
 
   replicaCount: 1
@@ -78,8 +78,8 @@ backend:
 # Frontend configuration
 frontend:
   image:
-    repository: registry.k3s.local.christianmoore.me:8443/resume/frontend
-    tag: "v1.0.27"
+    repository: registry.local.k3s.cmoore.io:8443/resume/frontend
+    tag: "v1.0.28"
     pullPolicy: IfNotPresent
 
   replicaCount: 1
@@ -92,9 +92,9 @@ frontend:
   # Environment variables for runtime configuration
   env:
     # WebSocket URL - must use wss:// for secure connection
-    wsUrl: "wss://resume.k3s.christianmoore.me/ws/chat"
+    wsUrl: "wss://christianmoore.me/ws/chat"
     # API URL (optional, for future REST endpoints)
-    apiUrl: "https://resume.k3s.christianmoore.me"
+    apiUrl: "https://christianmoore.me"
 
   # Resource limits
   resources:
@@ -147,9 +147,9 @@ frontend:
 ingress:
   enabled: true
   # Primary frontend domain
-  frontendHost: resume.k3s.christianmoore.me
+  frontendHost: christianmoore.me
   # Backend API domain (optional - can access backend via frontendHost/ws/ and /api/)
-  backendHost: backend.resume.k3s.christianmoore.me
+  backendHost: backend.christianmoore.me
   backendEnabled: true  # Set to false to disable separate backend domain
   entryPoint: websecure  # Standard HTTPS on port 443 (externally exposed)
   tls:

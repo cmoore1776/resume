@@ -2,7 +2,7 @@
 
 An interactive resume website featuring real-time AI chat powered by OpenAI's GPT-4 Realtime API. Users can view Christian Moore's professional resume and engage in voice and text conversations about his experience.
 
-**🔗 Live Site**: https://resume.k3s.christianmoore.me
+**🔗 Live Site**: https://christianmoore.me
 
 ## Overview
 
@@ -324,7 +324,7 @@ For detailed development information, see [CLAUDE.md](CLAUDE.md) which includes:
 
 ## Links
 
-- **Live Demo**: https://resume.k3s.christianmoore.me
+- **Live Demo**: https://christianmoore.me
 - **GitHub**: https://github.com/cmoore1776/resume
 - **OpenAI Realtime API**: https://platform.openai.com/docs/guides/realtime
 

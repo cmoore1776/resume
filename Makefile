@@ -13,7 +13,7 @@
 	clean
 
 # Configuration
-REGISTRY ?= registry.k3s.local.christianmoore.me:8443
+REGISTRY ?= registry.local.k3s.cmoore.io:8443
 NAMESPACE ?= resume
 BACKEND_IMAGE ?= $(REGISTRY)/$(NAMESPACE)/backend
 FRONTEND_IMAGE ?= $(REGISTRY)/$(NAMESPACE)/frontend

@@ -4,7 +4,7 @@ This guide explains how to build and push images to the local k3s Docker registr
 
 ## Local Registry Information
 
-- **URL**: `registry.k3s.local.christianmoore.me`
+- **URL**: `registry.local.k3s.cmoore.io:8443`
 - **Protocol**: HTTPS (TLS via Traefik + cert-manager)
 - **Storage**: Longhorn persistent storage (50Gi)
 - **Namespace**: Images are organized under `resume/`
@@ -23,8 +23,8 @@ make docker-push       # Push only
 ```
 
 This will create:
-- `registry.k3s.local.christianmoore.me/resume/backend:latest`
-- `registry.k3s.local.christianmoore.me/resume/frontend:latest`
+- `registry.local.k3s.cmoore.io:8443/resume/backend:latest`
+- `registry.local.k3s.cmoore.io:8443/resume/frontend:latest`
 
 ### 2. Deploy
 
@@ -65,7 +65,7 @@ frontend:
 The Makefile uses these defaults (can be overridden):
 
 ```makefile
-REGISTRY ?= registry.k3s.local.christianmoore.me
+REGISTRY ?= registry.local.k3s.cmoore.io:8443
 NAMESPACE ?= resume
 TAG ?= latest
 ```
@@ -87,12 +87,12 @@ Images are configured in `chart/values.yaml`:
 ```yaml
 backend:
   image:
-    repository: registry.k3s.local.christianmoore.me/resume/backend
+    repository: registry.local.k3s.cmoore.io:8443/resume/backend
     tag: "latest"
 
 frontend:
   image:
-    repository: registry.k3s.local.christianmoore.me/resume/frontend
+    repository: registry.local.k3s.cmoore.io:8443/resume/frontend
     tag: "latest"
 ```
 
@@ -102,12 +102,12 @@ If you prefer not to use the Makefile:
 
 ```bash
 # Backend
-docker build -t registry.k3s.local.christianmoore.me/resume/backend:v1.0.0 backend/
-docker push registry.k3s.local.christianmoore.me/resume/backend:v1.0.0
+docker build -t registry.local.k3s.cmoore.io:8443/resume/backend:v1.0.0 backend/
+docker push registry.local.k3s.cmoore.io:8443/resume/backend:v1.0.0
 
 # Frontend
-docker build -t registry.k3s.local.christianmoore.me/resume/frontend:v1.0.0 frontend/
-docker push registry.k3s.local.christianmoore.me/resume/frontend:v1.0.0
+docker build -t registry.local.k3s.cmoore.io:8443/resume/frontend:v1.0.0 frontend/
+docker push registry.local.k3s.cmoore.io:8443/resume/frontend:v1.0.0
 ```
 
 ## Accessing the Registry
@@ -118,7 +118,7 @@ The registry should be accessible via HTTPS:
 
 ```bash
 # Test connection
-curl https://registry.k3s.local.christianmoore.me/v2/_catalog
+curl https://registry.local.k3s.cmoore.io:8443/v2/_catalog
 
 # Should return:
 # {"repositories":["resume/backend","resume/frontend"]}
@@ -138,13 +138,13 @@ No additional authentication is typically needed if:
 
 ```bash
 # List all repositories
-curl https://registry.k3s.local.christianmoore.me/v2/_catalog
+curl https://registry.local.k3s.cmoore.io:8443/v2/_catalog
 
 # List tags for backend
-curl https://registry.k3s.local.christianmoore.me/v2/resume/backend/tags/list
+curl https://registry.local.k3s.cmoore.io:8443/v2/resume/backend/tags/list
 
 # List tags for frontend
-curl https://registry.k3s.local.christianmoore.me/v2/resume/frontend/tags/list
+curl https://registry.local.k3s.cmoore.io:8443/v2/resume/frontend/tags/list
 ```
 
 ### Delete Images
@@ -154,11 +154,11 @@ Images can be deleted via the Docker Registry API:
 ```bash
 # Get manifest digest
 DIGEST=$(curl -I -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
-  https://registry.k3s.local.christianmoore.me/v2/resume/backend/manifests/v1.0.0 \
+  https://registry.local.k3s.cmoore.io:8443/v2/resume/backend/manifests/v1.0.0 \
   | grep Docker-Content-Digest | awk '{print $2}')
 
 # Delete image
-curl -X DELETE https://registry.k3s.local.christianmoore.me/v2/resume/backend/manifests/$DIGEST
+curl -X DELETE https://registry.local.k3s.cmoore.io:8443/v2/resume/backend/manifests/$DIGEST
 ```
 
 ### Garbage Collection
@@ -213,13 +213,13 @@ make k8s-logs-frontend
 kubectl get pods -n docker-registry
 
 # 2. Test registry URL
-curl https://registry.k3s.local.christianmoore.me/v2/
+curl https://registry.local.k3s.cmoore.io:8443/v2/
 
 # 3. Check DNS resolution
-nslookup registry.k3s.local.christianmoore.me
+nslookup registry.local.k3s.cmoore.io
 
 # 4. Check certificate is valid
-openssl s_client -connect registry.k3s.local.christianmoore.me:443
+openssl s_client -connect registry.local.k3s.cmoore.io:8443
 ```
 
 ### Pull Fails (ImagePullBackOff)
@@ -229,7 +229,7 @@ openssl s_client -connect registry.k3s.local.christianmoore.me:443
 **Solutions**:
 ```bash
 # 1. Check image exists in registry
-curl https://registry.k3s.local.christianmoore.me/v2/resume/backend/tags/list
+curl https://registry.local.k3s.cmoore.io:8443/v2/resume/backend/tags/list
 
 # 2. Check pod events
 kubectl describe pod <pod-name> -n resume
@@ -239,7 +239,7 @@ kubectl get deployment -n resume -o yaml | grep image:
 
 # 4. Check if registry is accessible from cluster
 kubectl run curl --image=curlimages/curl -it --rm -- \
-  curl https://registry.k3s.local.christianmoore.me/v2/_catalog
+  curl https://registry.local.k3s.cmoore.io:8443/v2/_catalog
 ```
 
 ### Certificate Issues
@@ -310,7 +310,7 @@ kubectl edit pvc docker-registry-data -n docker-registry
 
 ```bash
 # Save image to tar file
-docker save registry.k3s.local.christianmoore.me/resume/backend:v1.0.0 \
+docker save registry.local.k3s.cmoore.io:8443/resume/backend:v1.0.0 \
   -o resume-backend-v1.0.0.tar
 
 # Compress
@@ -324,7 +324,7 @@ gzip resume-backend-v1.0.0.tar
 docker load -i resume-backend-v1.0.0.tar.gz
 
 # Push to registry
-docker push registry.k3s.local.christianmoore.me/resume/backend:v1.0.0
+docker push registry.local.k3s.cmoore.io:8443/resume/backend:v1.0.0
 ```
 
 ## Next Steps

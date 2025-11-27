@@ -62,7 +62,7 @@ Key configuration options:
 # Backend image and service
 backend:
   image:
-    repository: registry.k3s.local.christianmoore.me/resume/backend
+    repository: registry.local.k3s.cmoore.io:8443/resume/backend
     tag: "latest"
   service:
     type: ClusterIP  # Or LoadBalancer for direct access
@@ -71,14 +71,14 @@ backend:
 # Frontend image
 frontend:
   image:
-    repository: registry.k3s.local.christianmoore.me/resume/frontend
+    repository: registry.local.k3s.cmoore.io:8443/resume/frontend
     tag: "latest"
 
 # Ingress with dual domains
 ingress:
   enabled: true
-  frontendHost: resume.k3s.christianmoore.me
-  backendHost: backend.resume.k3s.christianmoore.me
+  frontendHost: christianmoore.me
+  backendHost: backend.christianmoore.me
   backendEnabled: true
   entryPoint: websecure
   certIssuer: letsencrypt-cloudflare
@@ -106,8 +106,8 @@ systemPrompt:
 Ensure DNS records point to your cluster:
 
 ```
-resume.k3s.christianmoore.me     → <cluster-ip>
-backend.resume.k3s.christianmoore.me → <cluster-ip>
+christianmoore.me         → <cluster-ip>
+backend.christianmoore.me → <cluster-ip>
 ```
 
 ### Rate Limiting
