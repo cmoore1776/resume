@@ -25,21 +25,17 @@ spec:
       labels:
         {{- include "resume.frontend.selectorLabels" . | nindent 8 }}
     spec:
-      {{- if .Values.frontend.gitSync.enabled }}
-      # Use shared process namespace for git-sync to signal nginx
-      shareProcessNamespace: false
-      {{- end }}
       securityContext:
         runAsNonRoot: true
-        fsGroup: 101
+        fsGroup: 65534
         seccompProfile:
           type: RuntimeDefault
       {{- if .Values.frontend.gitSync.enabled }}
       initContainers:
-        # Wait for git-sync to complete initial clone
-        - name: wait-for-git-sync
-          image: busybox:1.36
-          imagePullPolicy: IfNotPresent
+        # Git-sync init container - clones repo once before main containers start
+        - name: git-sync-init
+          image: "{{ .Values.frontend.gitSync.image.repository }}:{{ .Values.frontend.gitSync.image.tag }}"
+          imagePullPolicy: {{ .Values.frontend.gitSync.image.pullPolicy }}
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -50,20 +46,18 @@ spec:
             runAsGroup: 65534
             seccompProfile:
               type: RuntimeDefault
-          command:
-            - sh
-            - -c
-            - |
-              echo "Waiting for git-sync to complete initial clone..."
-              while [ ! -f /git/repo/index.html ]; do
-                echo "Waiting for /git/repo/index.html..."
-                sleep 2
-              done
-              echo "Git sync complete, index.html found"
+          args:
+            - --repo={{ .Values.frontend.gitSync.repo }}
+            - --ref={{ .Values.frontend.gitSync.branch }}
+            - --root={{ .Values.frontend.gitSync.root }}
+            - --link=repo
+            - --one-time
+            - --max-failures=3
+          resources:
+            {{- toYaml .Values.frontend.gitSync.resources | nindent 12 }}
           volumeMounts:
             - name: git-repo
-              mountPath: /git
-              readOnly: true
+              mountPath: {{ .Values.frontend.gitSync.root }}
         # Copy git content to nginx html dir and apply env substitution
         - name: env-substitute
           image: busybox:1.36
@@ -191,7 +185,7 @@ spec:
               subPath: nginx.conf
             {{- end }}
         {{- if .Values.frontend.gitSync.enabled }}
-        # Git-sync sidecar for continuous updates
+        # Git-sync sidecar for continuous updates (optional - for auto-refresh)
         - name: git-sync
           image: "{{ .Values.frontend.gitSync.image.repository }}:{{ .Values.frontend.gitSync.image.tag }}"
           imagePullPolicy: {{ .Values.frontend.gitSync.image.pullPolicy }}
