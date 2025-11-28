@@ -77,12 +77,35 @@ backend:
 
 # Frontend configuration
 frontend:
+  # Use base nginx image directly (no custom Docker build needed)
   image:
-    repository: registry.local.k3s.cmoore.io:8443/resume/frontend
-    tag: "v1.0.36"
+    repository: cmooreio/nginx
+    tag: "latest"
     pullPolicy: IfNotPresent
 
   replicaCount: 1
+
+  # Git-sync configuration for pulling frontend assets from dist branch
+  gitSync:
+    enabled: true
+    image:
+      repository: registry.k8s.io/git-sync/git-sync
+      tag: "v4.4.1"
+      pullPolicy: IfNotPresent
+    # Repository URL (use HTTPS for public repos, SSH for private)
+    repo: "https://github.com/cmoore1776/resume.git"
+    branch: "dist"
+    # Sync interval in seconds (0 = one-time sync on startup)
+    period: 60
+    # Root directory for git-sync
+    root: /git
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 50m
+        memory: 64Mi
 
   service:
     type: ClusterIP

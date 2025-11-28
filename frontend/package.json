@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:deploy": "VITE_WS_URL=__VITE_WS_URL__ VITE_API_URL=__VITE_API_URL__ VITE_PUBLIC_POSTHOG_KEY=__VITE_PUBLIC_POSTHOG_KEY__ VITE_PUBLIC_POSTHOG_HOST=__VITE_PUBLIC_POSTHOG_HOST__ npm run build",
+    "deploy": "npm run build:deploy && ../scripts/deploy-frontend.sh",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",

@@ -1,3 +1,7 @@
+# Frontend Dockerfile
+# NOTE: For production, we use git-sync to pull pre-built assets from the dist branch.
+# This Dockerfile is primarily for local development with docker-compose.
+
 # Build stage
 FROM node:20-alpine AS builder
 

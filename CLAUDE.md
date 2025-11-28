@@ -30,19 +30,24 @@ Both must allow same origins or WebSocket fails with 403:
 ### Audio Format (OpenAI Mode)
 **CRITICAL**: Do NOT set `Format` field in `SessionAudioOutput` - causes distortion. Frontend decodes PCM16 24kHz.
 
-### Frontend Runtime Env Injection
-- Vite creates placeholders: `__VITE_WS_URL__`, `__VITE_API_URL__`
-- `docker-entrypoint.sh` replaces via sed on container start
-- **Requires UID 101** for write access (nginx user)
+### Frontend Deployment (Git-Sync Pattern)
+- Frontend builds pushed to `dist` branch (GitHub Actions or `npm run deploy`)
+- Git-sync sidecar pulls `dist` branch every 60 seconds
+- Init container applies env substitution from Helm values
+- No Docker rebuild needed for frontend changes - just push to main
+
+**Env placeholders**: `__VITE_WS_URL__`, `__VITE_API_URL__`, `__VITE_PUBLIC_POSTHOG_KEY__`, `__VITE_PUBLIC_POSTHOG_HOST__`
 
 ## Build & Deploy
 
 ```bash
-# Build and push images
-make docker-build-push TAG=<version>
+# Frontend: automatic via GitHub Actions on push to main
+# Or manually:
+cd frontend && npm run deploy
 
-# Deploy: update chart/values.yaml image tags, commit and push
-# ArgoCD auto-syncs from main branch
+# Backend: build and push Docker image
+make docker-build-push TAG=<version>
+# Update chart/values.yaml backend.image.tag, commit and push
 
 # Monitor
 kubectl get pods -n resume
@@ -67,8 +72,10 @@ kubectl patch application resume -n argocd --type merge \
 - Origin not in CORS lists (update both `main.go` AND `chat.go`)
 - Missing/invalid JWT token
 
-### Frontend CrashLoopBackOff
-- `sed: Permission denied` - Verify `runAsUser: 101` in frontend podSecurityContext
+### Frontend Not Updating
+- Check git-sync logs: `kubectl logs -n resume -l app=resume-frontend -c git-sync`
+- Verify `dist` branch exists and has content
+- Pod restart needed after git-sync updates (init container runs only at startup)
 
 ### Images Not Updating
 - ArgoCD showing old revision - Force sync with kubectl patch

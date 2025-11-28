@@ -25,18 +25,135 @@ spec:
       labels:
         {{- include "resume.frontend.selectorLabels" . | nindent 8 }}
     spec:
-      {{- with .Values.frontend.podSecurityContext | default .Values.podSecurityContext }}
+      {{- if .Values.frontend.gitSync.enabled }}
+      # Use shared process namespace for git-sync to signal nginx
+      shareProcessNamespace: false
+      {{- end }}
       securityContext:
-        {{- toYaml . | nindent 8 }}
+        runAsNonRoot: true
+        fsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      {{- if .Values.frontend.gitSync.enabled }}
+      initContainers:
+        # Wait for git-sync to complete initial clone
+        - name: wait-for-git-sync
+          image: busybox:1.36
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for git-sync to complete initial clone..."
+              while [ ! -f /git/repo/index.html ]; do
+                echo "Waiting for /git/repo/index.html..."
+                sleep 2
+              done
+              echo "Git sync complete, index.html found"
+          volumeMounts:
+            - name: git-repo
+              mountPath: /git
+              readOnly: true
+        # Copy git content to nginx html dir and apply env substitution
+        - name: env-substitute
+          image: busybox:1.36
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
+            runAsUser: 101
+            runAsGroup: 101
+            seccompProfile:
+              type: RuntimeDefault
+          env:
+            - name: VITE_WS_URL
+              value: {{ .Values.frontend.env.wsUrl | quote }}
+            - name: VITE_API_URL
+              value: {{ .Values.frontend.env.apiUrl | quote }}
+            {{- if .Values.frontend.env.posthogKey }}
+            - name: VITE_PUBLIC_POSTHOG_KEY
+              value: {{ .Values.frontend.env.posthogKey | quote }}
+            {{- else }}
+            - name: VITE_PUBLIC_POSTHOG_KEY
+              value: ""
+            {{- end }}
+            {{- if .Values.frontend.env.posthogHost }}
+            - name: VITE_PUBLIC_POSTHOG_HOST
+              value: {{ .Values.frontend.env.posthogHost | quote }}
+            {{- else }}
+            - name: VITE_PUBLIC_POSTHOG_HOST
+              value: "https://us.i.posthog.com"
+            {{- end }}
+          command:
+            - sh
+            - -c
+            - |
+              echo "Copying files from git-sync to nginx html directory..."
+              cp -r /git/repo/* /html/
+
+              echo "Applying environment variable substitution..."
+              echo "  VITE_WS_URL: $VITE_WS_URL"
+              echo "  VITE_API_URL: $VITE_API_URL"
+              echo "  VITE_PUBLIC_POSTHOG_KEY: ${VITE_PUBLIC_POSTHOG_KEY:+[set]}"
+              echo "  VITE_PUBLIC_POSTHOG_HOST: $VITE_PUBLIC_POSTHOG_HOST"
+
+              # Replace placeholders in all JS files
+              for file in /html/assets/*.js; do
+                if [ -f "$file" ]; then
+                  sed -i \
+                    -e "s|__VITE_WS_URL__|$VITE_WS_URL|g" \
+                    -e "s|__VITE_API_URL__|$VITE_API_URL|g" \
+                    -e "s|__VITE_PUBLIC_POSTHOG_KEY__|$VITE_PUBLIC_POSTHOG_KEY|g" \
+                    -e "s|__VITE_PUBLIC_POSTHOG_HOST__|$VITE_PUBLIC_POSTHOG_HOST|g" \
+                    "$file"
+                fi
+              done
+
+              # Also substitute in index.html if needed
+              if [ -f /html/index.html ]; then
+                sed -i \
+                  -e "s|__VITE_WS_URL__|$VITE_WS_URL|g" \
+                  -e "s|__VITE_API_URL__|$VITE_API_URL|g" \
+                  -e "s|__VITE_PUBLIC_POSTHOG_KEY__|$VITE_PUBLIC_POSTHOG_KEY|g" \
+                  -e "s|__VITE_PUBLIC_POSTHOG_HOST__|$VITE_PUBLIC_POSTHOG_HOST|g" \
+                  /html/index.html
+              fi
+
+              echo "Environment substitution complete"
+          volumeMounts:
+            - name: git-repo
+              mountPath: /git
+              readOnly: true
+            - name: nginx-html
+              mountPath: /html
       {{- end }}
       containers:
         - name: frontend
           image: "{{ .Values.frontend.image.repository }}:{{ .Values.frontend.image.tag }}"
           imagePullPolicy: {{ .Values.frontend.image.pullPolicy }}
-          {{- with .Values.frontend.securityContext | default .Values.securityContext }}
           securityContext:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
+            runAsUser: 101
+            seccompProfile:
+              type: RuntimeDefault
+          {{- if not .Values.frontend.gitSync.enabled }}
           env:
             - name: VITE_WS_URL
               value: {{ .Values.frontend.env.wsUrl | quote }}
@@ -50,6 +167,7 @@ spec:
             - name: VITE_PUBLIC_POSTHOG_HOST
               value: {{ .Values.frontend.env.posthogHost | quote }}
             {{- end }}
+          {{- end }}
           ports:
             - name: http
               containerPort: {{ .Values.frontend.service.targetPort }}
@@ -64,6 +182,52 @@ spec:
           {{- end }}
           resources:
             {{- toYaml .Values.frontend.resources | nindent 12 }}
+          volumeMounts:
+            {{- if .Values.frontend.gitSync.enabled }}
+            - name: nginx-html
+              mountPath: /etc/nginx/html
+            - name: nginx-config
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: nginx.conf
+            {{- end }}
+        {{- if .Values.frontend.gitSync.enabled }}
+        # Git-sync sidecar for continuous updates
+        - name: git-sync
+          image: "{{ .Values.frontend.gitSync.image.repository }}:{{ .Values.frontend.gitSync.image.tag }}"
+          imagePullPolicy: {{ .Values.frontend.gitSync.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          args:
+            - --repo={{ .Values.frontend.gitSync.repo }}
+            - --ref={{ .Values.frontend.gitSync.branch }}
+            - --root={{ .Values.frontend.gitSync.root }}
+            - --link=repo
+            - --period={{ .Values.frontend.gitSync.period }}s
+            - --max-failures=3
+          resources:
+            {{- toYaml .Values.frontend.gitSync.resources | nindent 12 }}
+          volumeMounts:
+            - name: git-repo
+              mountPath: {{ .Values.frontend.gitSync.root }}
+        {{- end }}
+      volumes:
+        {{- if .Values.frontend.gitSync.enabled }}
+        - name: git-repo
+          emptyDir: {}
+        - name: nginx-html
+          emptyDir: {}
+        - name: nginx-config
+          configMap:
+            name: {{ include "resume.fullname" . }}-nginx-config
+        {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
