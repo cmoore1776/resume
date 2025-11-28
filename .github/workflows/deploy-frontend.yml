@@ -54,9 +54,6 @@ jobs:
           # Copy nginx config for reference
           cp frontend/nginx.conf "$DIST_DIR/"
 
-          # Copy entrypoint script for env substitution
-          cp frontend/docker-entrypoint.sh "$DIST_DIR/"
-
           # Switch to dist branch (create if doesn't exist)
           git fetch origin dist:dist 2>/dev/null || git checkout --orphan dist
 

@@ -27,9 +27,8 @@ trap "rm -rf $DIST_DIR" EXIT
 echo "Copying built files..."
 cp -r "$FRONTEND_DIR/dist"/* "$DIST_DIR/"
 
-# Copy nginx config and entrypoint for reference
+# Copy nginx config for reference
 cp "$FRONTEND_DIR/nginx.conf" "$DIST_DIR/"
-cp "$FRONTEND_DIR/docker-entrypoint.sh" "$DIST_DIR/"
 
 # Add .nojekyll for GitHub Pages compatibility
 touch "$DIST_DIR/.nojekyll"

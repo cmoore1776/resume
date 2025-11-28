@@ -173,7 +173,7 @@ export default function Resume() {
             <p>
               <strong>Kubernetes Homelab:</strong> Production‑grade k3s with ArgoCD GitOps, sealed secrets, default‑deny NetworkPolicies,
               cert‑manager TLS, Longhorn backups, and full Prometheus/Grafana/Loki/Alertmanager observability;
-              automated OS/cluster updates and Helm‑managed apps. <a href="cmoore.io" target="_blank" rel="noopener noreferrer">Info</a>
+              automated OS/cluster updates and Helm‑managed apps. <a href="https://cmoore.io" target="_blank" rel="noopener noreferrer">Info</a>
             </p>
           </div>
 
