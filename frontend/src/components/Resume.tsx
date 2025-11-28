@@ -173,14 +173,14 @@ export default function Resume() {
             <p>
               <strong>Kubernetes Homelab:</strong> Production‑grade k3s with ArgoCD GitOps, sealed secrets, default‑deny NetworkPolicies,
               cert‑manager TLS, Longhorn backups, and full Prometheus/Grafana/Loki/Alertmanager observability;
-              automated OS/cluster updates and Helm‑managed apps. <a href="https://github.com/cmoore1776/homelab" target="_blank" rel="noopener noreferrer">Source</a>
+              automated OS/cluster updates and Helm‑managed apps. <a href="cmoore.io" target="_blank" rel="noopener noreferrer">Info</a>
             </p>
           </div>
 
           <div className="project">
             <p>
               <strong>Real-time AI Avatar:</strong> Golang backend, WebSocket streaming, realtime voice synthesis,
-              and a React frontend. <a href="https://christianmoore.me" target="_blank" rel="noopener noreferrer">Live</a> • <a href="https://github.com/cmoore1776/resume" target="_blank" rel="noopener noreferrer">Source</a>
+              and a React frontend. <a href="https://github.com/cmoore1776/resume" target="_blank" rel="noopener noreferrer">Source</a>
             </p>
           </div>
         </section>
