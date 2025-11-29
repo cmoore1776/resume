@@ -84,14 +84,14 @@ export default function Resume() {
             </div>
             <div className="job-meta">
               <span>Remote (NH)</span>
-              <span>February 2021 - Present</span>
+              <span>2021 - Present</span>
             </div>
             <ul>
-              <li>Architected & operated large‑scale Slurm‑based HPC for silicon design</li>
-              <li>Created hybrid cloud imaging and release management tools in Python for Raspberry Pi</li>
-              <li>Implemented AWS FSx for OpenZFS with custom retention/lifecycle/snapshot/backup strategies</li>
-              <li>Established GitOps/IaC (AWS CDK, GitLab CI/CD) and automated pipelines for staged releases</li>
-              <li>Implemented observability (OpenSearch/Grafana) and custom performance tooling for efficiency gains</li>
+              <li>Architecting & operating large‑scale Slurm‑based HPC for silicon design</li>
+              <li>Designed hybrid cloud imaging and release management tools in Python for Raspberry Pi</li>
+              <li>Implemented AWS FSx for OpenZFS with tailored retention, lifecycle, snapshot, & backup strategies</li>
+              <li>Established GitOps/IaC (AWS CDK, GitLab CI/CD) and automated pipelines for fast pased development</li>
+              <li>Implemented observability (CloudWatch/OpenSearch) and reporting for environment health and activity</li>
             </ul>
           </div>
 
@@ -102,7 +102,7 @@ export default function Resume() {
             </div>
             <div className="job-meta">
               <span>Waltham, MA</span>
-              <span>July 2017 - March 2020</span>
+              <span>2017 - 2020</span>
             </div>
             <ul>
               <li>Built Node.js/Lambda security reporting tool for compliance monitoring across 200+ AWS accounts</li>
@@ -119,7 +119,7 @@ export default function Resume() {
             </div>
             <div className="job-meta">
               <span>Waltham, MA</span>
-              <span>October 2014 - June 2017</span>
+              <span>2014 - 2017</span>
             </div>
             <ul>
               <li>Facilitated migration from monolithic on-prem Windows .NET to AWS Linux microservices</li>
@@ -137,7 +137,7 @@ export default function Resume() {
             </div>
             <div className="job-meta">
               <span>Lexington, MA</span>
-              <span>January 2010 - September 2013</span>
+              <span>2010 - 2013</span>
             </div>
             <ul>
               <li>Ran major incident, problem, and change processes for a high‑traffic e‑commerce platform</li>
@@ -155,7 +155,7 @@ export default function Resume() {
             </div>
             <div className="job-meta">
               <span>Lexington, MA</span>
-              <span>June 2007 - December 2009</span>
+              <span>2007 - 2009</span>
             </div>
             <ul>
               <li>Administered Windows production servers for large e‑commerce site</li>

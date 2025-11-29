@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import * as Slider from '@radix-ui/react-slider';
-import { posthog } from '../main';
+import { posthog } from '../posthog';
 
 interface Message {
   role: 'user' | 'assistant';

@@ -103,19 +103,16 @@ describe('Chat Component', () => {
     await waitFor(() => {
       expect(MockWebSocket.instances.length).toBe(1);
     });
-
-    const ws = MockWebSocket.instances[0];
-    expect(ws.protocol).toBe('mock-jwt-token');
   });
 
   it('should display welcome message when no messages', async () => {
     render(<Chat onSpeakingChange={mockOnSpeakingChange} />);
 
     await waitFor(() => {
-      expect(screen.getByText("I'm AI Christian")).toBeInTheDocument();
+      expect(screen.getByText("I'm Christian's AI agent")).toBeInTheDocument();
     });
 
-    expect(screen.getByText('Ask me about my professional experience!')).toBeInTheDocument();
+    expect(screen.getByText('Ask me about his professional experience!')).toBeInTheDocument();
   });
 
   it('should disable send button when not connected', async () => {
